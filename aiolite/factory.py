@@ -5,18 +5,15 @@ from typing import Tuple
 
 
 class Record:
+
+    __slots__ = ('_records', '_row')
+
     def __init__(self, cursor: sqlite3.Cursor, row: Tuple) -> None:
-        dictionary = {}
-        for i, column in enumerate(cursor.description):
-            dictionary[column[0]] = row[i]
-        self._records = dictionary
+        self._records = {column[0]: row[i] for i, column in enumerate(cursor.description)}
         self._row = row
 
     def get(self, name, default=None, /):
-        try:
-            return self._records[name]
-        except BaseException:
-            return default
+        return self._records.get(name, default)
 
     def items(self):
         return self._records.items()

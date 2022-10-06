@@ -31,6 +31,8 @@ class Transaction:
     Asyncio Transaction for sqlite3.
     """
 
+    __slots__ = ("_conn", "_isolation", "_managed", "_state")
+
     def __init__(self, conn: "Connection", isolation: IsolationLevel) -> None:
         self._conn = conn
         self._isolation = isolation

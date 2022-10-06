@@ -56,6 +56,13 @@ def get_thread_number() -> int:
 
 
 class Connection(Thread):
+
+    __slots__ = (
+        "_loop", "_conn", "_connector",
+        "_row_factory",  "_isolation_level",
+        "_iter_chunk_size", "_queue", "_event"
+    )
+
     def __init__(
             self,
             connector: Callable[[], sqlite3.Connection],

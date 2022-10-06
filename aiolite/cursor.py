@@ -9,6 +9,9 @@ from .factory import Record
 
 
 class Cursor:
+
+    __slots__ = ("_iter_chunk_size", "_conn", "_cursor")
+
     def __init__(self, conn: "Connection", cursor: sqlite3.Cursor) -> None:
         self._iter_chunk_size = conn._iter_chunk_size
         self._conn = conn
