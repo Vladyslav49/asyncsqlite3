@@ -1,9 +1,8 @@
-import sqlite3
-
+from sqlite3 import Row
 from io import StringIO
 
 
-class Record(sqlite3.Row):
+class Record(Row):
     def get(self, name, default=None, /):
         try:
             return self[name]
@@ -19,6 +18,6 @@ class Record(sqlite3.Row):
                 if len(dict(self)) == count:
                     f.write(f"{key}={value}>")
                 else:
-                    f.write(f"{key}={value}, ")
+                    f.write(f"{key}={value} ")
             return f.getvalue()
 
