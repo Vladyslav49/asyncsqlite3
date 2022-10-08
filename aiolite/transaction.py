@@ -39,7 +39,7 @@ class Transaction:
         self._managed = False
         self._state = TransactionState.NEW
 
-    def __check_state(self, operation: str) -> None:
+    def _check_state(self, operation: str) -> None:
         if self._state is not TransactionState.STARTED:
             if self._state is TransactionState.NEW:
                 raise TransactionError(
@@ -75,9 +75,9 @@ class Transaction:
         else:
             self._state = TransactionState.STARTED
 
-    async def __commit(self) -> None:
+    async def _commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
-        self.__check_state("commit")
+        self._check_state("commit")
 
         try:
             await self._conn.commit()
@@ -87,9 +87,9 @@ class Transaction:
         else:
             self._state = TransactionState.COMMITTED
 
-    async def __rollback(self) -> None:
+    async def _rollback(self) -> None:
         """Exit the transaction or savepoint block and rollback changes."""
-        self.__check_state("rollback")
+        self._check_state("rollback")
 
         try:
             await self._conn.rollback()
@@ -115,8 +115,8 @@ class Transaction:
     ) -> None:
         try:
             if exc_type is not None:
-                await self.__rollback()
+                await self._rollback()
             else:
-                await self.__commit()
+                await self._commit()
         finally:
             self._managed = False

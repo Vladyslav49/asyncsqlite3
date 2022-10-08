@@ -59,7 +59,7 @@ class Pool:
     __slots__ = (
         '_database', '_min_size', '_max_size', '_loop',
         '_row_factory', '_iter_chunk_size', '_connect_kwargs',
-        '__all_connections', '_waiters', '_event'
+        '_all_connections', '_waiters', '_event'
     )
 
     def __init__(
@@ -90,12 +90,12 @@ class Pool:
         self._row_factory = row_factory
         self._iter_chunk_size = iter_chunk_size
         self._connect_kwargs = kwargs
-        self.__all_connections = []
+        self._all_connections = []
         self._waiters = Queue(maxsize=self._max_size)
         self._event = Event()
 
     async def _acquire(self, *, timeout: Optional[float]) -> Connection:
-        if len(self.__all_connections) < self._max_size:
+        if len(self._all_connections) < self._max_size:
             conn = await connect(
                 self._database,
                 **self._connect_kwargs,
@@ -105,7 +105,7 @@ class Pool:
             )
             self._waiters.put_nowait(conn)
 
-            self.__all_connections.append(conn)
+            self._all_connections.append(conn)
 
         if self._event.is_set():
             raise PoolError("pool is closed")
@@ -123,7 +123,7 @@ class Pool:
 
     async def release(self, conn: Connection) -> None:
         """Release a database connection back to the pool."""
-        if conn not in self.__all_connections:
+        if conn not in self._all_connections:
             raise PoolReleaseError("Connection not found.")
         elif str(conn) not in str(self._waiters):
             self._waiters.put_nowait(conn)
@@ -133,21 +133,21 @@ class Pool:
     async def close(self) -> None:
         """Attempt to gracefully close all connections in the pool."""
         if self._pool_is_full():
-            for conn in self.__all_connections:
+            for conn in self._all_connections:
                 await conn.close()
         if not self._event.is_set():
             self._event.set()
-            self.__all_connections.clear()
+            self._all_connections.clear()
         else:
             raise PoolCloseError("Pool already is closed.")
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""
-        for conn in self.__all_connections:
+        for conn in self._all_connections:
             await conn.close()
         if not self._event.is_set():
             self._event.set()
-            self.__all_connections.clear()
+            self._all_connections.clear()
         else:
             raise PoolCloseError("Pool already is closed.")
 
@@ -192,7 +192,7 @@ class Pool:
 
     def _pool_is_full(self) -> bool:
         while not self._event.is_set():
-            if len(self.__all_connections) == self._waiters.qsize():
+            if len(self._all_connections) == self._waiters.qsize():
                 return True
         else:
             return False
@@ -210,7 +210,7 @@ class Pool:
                 )
                 self._waiters.put_nowait(conn)
 
-                self.__all_connections.append(conn)
+                self._all_connections.append(conn)
 
         return self
 
