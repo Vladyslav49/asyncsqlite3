@@ -1,3 +1,4 @@
+import asyncio
 import sys
 
 from enum import Enum
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 
 from .exceptions import TransactionError
 
+lock = asyncio.Lock()
 
 IsolationLevel = Optional[Literal["DEFERRED", "IMMEDIATE", "EXCLUSIVE"]]
 
@@ -105,6 +107,7 @@ class Transaction:
                 "cannot enter context: already in an `async with` block")
         else:
             self._managed = True
+        await lock.acquire()
         await self.start()
 
     async def __aexit__(
@@ -120,3 +123,4 @@ class Transaction:
                 await self._commit()
         finally:
             self._managed = False
+            lock.release()
