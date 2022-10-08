@@ -1,4 +1,3 @@
-import asyncio
 import sys
 
 from enum import Enum
@@ -15,7 +14,9 @@ if TYPE_CHECKING:
 
 from .exceptions import TransactionError
 
-lock = asyncio.Lock()
+from .lock import RLock
+
+lock = RLock()
 
 IsolationLevel = Optional[Literal["DEFERRED", "IMMEDIATE", "EXCLUSIVE"]]
 
