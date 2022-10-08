@@ -5,7 +5,7 @@ class RLock(asyncio.Lock):
     """
     A reentrant lock for Python coroutines.
 
-    Taken from module asyncio-rlock.
+    Taken from the asyncio-rlock module.
     """
 
     def __init__(self, *args, **kwargs):
