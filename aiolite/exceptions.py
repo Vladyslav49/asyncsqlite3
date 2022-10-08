@@ -11,15 +11,15 @@ class DatabaseError(Error):
     pass
 
 
+class InterfaceError(Error):
+    pass
+
+
 class DataError(DatabaseError):
     pass
 
 
 class IntegrityError(DatabaseError):
-    pass
-
-
-class InterfaceError(Error):
     pass
 
 
@@ -40,22 +40,10 @@ class ProgrammingError(DatabaseError):
 
 
 # transaction
-class TransactionError(Error):
+class TransactionError(Exception):
     pass
 
 
 # pools
-class PoolError(Error):
-    pass
-
-
-class PoolAcquireError(PoolError):
-    pass
-
-
-class PoolReleaseError(PoolError):
-    pass
-
-
-class PoolCloseError(PoolError):
+class PoolError(Exception):
     pass

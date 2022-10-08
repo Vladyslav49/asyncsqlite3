@@ -25,10 +25,7 @@ from .exceptions import (
     OperationalError,
     ProgrammingError,
     TransactionError,
-    PoolError,
-    PoolAcquireError,
-    PoolReleaseError,
-    PoolCloseError
+    PoolError
 )
 
 __author__ = "Vladyslav49"
@@ -58,8 +55,5 @@ __all__ = [
     "OperationalError",
     "ProgrammingError",
     "TransactionError",
-    "PoolError",
-    "PoolAcquireError",
-    "PoolReleaseError",
-    "PoolCloseError"
+    "PoolError"
 ]

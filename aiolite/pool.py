@@ -7,13 +7,7 @@ from typing import Union, Optional, Type, Generator, Any, Iterable
 from pathlib import Path
 
 from . import Connection, Cursor, connect
-
-from .exceptions import (
-    PoolError,
-    PoolAcquireError,
-    PoolReleaseError,
-    PoolCloseError
-)
+from .exceptions import PoolError
 
 
 class PoolAcquireContext:
@@ -115,7 +109,7 @@ class Pool:
                 timeout=timeout
             )
         elif self._waiters.empty():
-            raise PoolAcquireError("There are no free connections in the pool.")
+            raise PoolError("There are no free connections in the pool.")
 
     def acquire(self, *, timeout: Optional[float] = None) -> PoolAcquireContext:
         """Acquire a database connection from the pool."""
@@ -124,11 +118,11 @@ class Pool:
     async def release(self, conn: Connection) -> None:
         """Release a database connection back to the pool."""
         if conn not in self._all_connections:
-            raise PoolReleaseError("Connection not found.")
+            raise PoolError("Connection not found.")
         elif str(conn) not in str(self._waiters):
             self._waiters.put_nowait(conn)
         elif str(conn) in str(self._waiters):
-            raise PoolReleaseError("The connection is already in the pool.")
+            raise PoolError("The connection is already in the pool.")
 
     async def close(self) -> None:
         """Attempt to gracefully close all connections in the pool."""
@@ -139,7 +133,7 @@ class Pool:
             self._event.set()
             self._all_connections.clear()
         else:
-            raise PoolCloseError("Pool already is closed.")
+            raise PoolError("Pool already is closed.")
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""
@@ -149,7 +143,7 @@ class Pool:
             self._event.set()
             self._all_connections.clear()
         else:
-            raise PoolCloseError("Pool already is closed.")
+            raise PoolError("Pool already is closed.")
 
     async def execute(self, sql: str, parameters: Iterable[Any] = None) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
@@ -213,6 +207,15 @@ class Pool:
                 self._all_connections.append(conn)
 
         return self
+
+    def __repr__(self):
+        return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
+
+    def __str__(self):
+        return f'<{type(self).__name__} {self._format()}>'
+
+    def _format(self):
+        return f'size={self.get_size()!r} min_size={self.get_min_size()!r} max_size={self.get_max_size()!r}'
 
     def __await__(self) -> Generator[Any, None, "Pool"]:
         return self.connector().__await__()

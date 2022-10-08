@@ -173,11 +173,12 @@ class Connection(Thread):
 
     async def close(self) -> None:
         """Complete queued queries/cursors and close the connection."""
-        try:
-            await self._put(self._conn.close)
-        finally:
-            self._event.set()
-            self._conn = None
+        if not self._event.is_set() and self._conn is not None:
+            try:
+                await self._put(self._conn.close)
+            finally:
+                self._event.set()
+                self._conn = None
 
     async def interrupt(self) -> None:
         """Interrupt pending queries."""
