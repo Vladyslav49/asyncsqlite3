@@ -85,7 +85,7 @@ class Connection(Thread):
         self._event = Event()
 
     def run(self) -> None:
-        """Execute functions in task."""
+        """Execute function calls on a separate thread."""
         while not self._event.is_set():
             # Continues running until all queue items are processed,
             # even after connection is closed (so we can finalize all futures)
