@@ -1,6 +1,6 @@
 import asyncio
 
-from queue import Queue
+from queue import Queue, Empty
 from threading import Event
 from types import TracebackType
 from typing import Union, Optional, Type, Generator, Any, Iterable
@@ -14,7 +14,7 @@ class PoolAcquireContext:
 
     __slots__ = ('_pool', '_timeout', '_conn')
 
-    def __init__(self, pool: "Pool", timeout: Optional[float] = None) -> None:
+    def __init__(self, pool: "Pool", timeout: float) -> None:
         self._pool = pool
         self._timeout = timeout
         self._conn = None
@@ -88,7 +88,7 @@ class Pool:
         self._waiters = Queue(maxsize=self._max_size)
         self._event = Event()
 
-    async def _acquire(self, *, timeout: Optional[float]) -> Connection:
+    async def _acquire(self, *, timeout: float) -> Connection:
         if len(self._all_connections) < self._max_size:
             conn = await connect(
                 self._database,
@@ -103,15 +103,13 @@ class Pool:
 
         if self._event.is_set():
             raise PoolError("pool is closed")
-        elif not self._waiters.empty():
-            return await asyncio.wait_for(
-                self._waiters.get_nowait(),
-                timeout=timeout
-            )
-        elif self._waiters.empty():
-            raise PoolError("There are no free connections in the pool.")
+        else:
+            try:
+                return self._waiters.get(timeout=timeout)
+            except Empty:
+                raise PoolError("There are no free connections in the pool.")
 
-    def acquire(self, *, timeout: Optional[float] = None) -> PoolAcquireContext:
+    def acquire(self, *, timeout: float = 10.0) -> PoolAcquireContext:
         """Acquire a database connection from the pool."""
         return PoolAcquireContext(self, timeout)
 
