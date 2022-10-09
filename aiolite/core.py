@@ -144,7 +144,7 @@ class Connection(Thread):
         return Cursor(self, await self._put(self._conn.cursor))
 
     @contextmanager
-    async def execute(self, sql: str, parameters: Iterable[Any] = None) -> Cursor:
+    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Cursor:
         """Helper to create a cursor and execute the given query."""
         if parameters is None:
             parameters = []

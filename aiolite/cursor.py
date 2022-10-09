@@ -26,7 +26,7 @@ class Cursor:
             for row in rows:
                 yield row
 
-    async def execute(self, sql: str, parameters: Iterable[Any] = None) -> "Cursor":
+    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> "Cursor":
         """Execute the given query."""
         if parameters is None:
             parameters = []
@@ -47,7 +47,7 @@ class Cursor:
         """Fetch a single row."""
         return await self._conn._put(self._cursor.fetchone)
 
-    async def fetchmany(self, size: int = None) -> Iterable[Record]:
+    async def fetchmany(self, size: Optional[int] = None) -> Iterable[Record]:
         """Fetch up to `cursor.arraysize` number of rows."""
         if size is None:
             size = self.arraysize

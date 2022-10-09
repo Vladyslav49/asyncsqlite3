@@ -143,7 +143,7 @@ class Pool:
         else:
             raise PoolError("Pool already is closed.")
 
-    async def execute(self, sql: str, parameters: Iterable[Any] = None) -> Cursor:
+    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
 
         Other than that, it behaves identically to Connection.execute().
@@ -206,13 +206,13 @@ class Pool:
 
         return self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'<{type(self).__name__} {self._format()}>'
 
-    def _format(self):
+    def _format(self) -> str:
         return f'size={self.get_size()!r} min_size={self.get_min_size()!r} max_size={self.get_max_size()!r}'
 
     def __await__(self) -> Generator[Any, None, "Pool"]:
@@ -233,8 +233,8 @@ class Pool:
 def create_pool(
         database: Union[str, Path],
         *,
-        min_size=10,
-        max_size=10,
+        min_size: int = 10,
+        max_size: int = 10,
         row_factory: bool = True,
         iter_chunk_size: int = 64,
         loop: Optional[asyncio.AbstractEventLoop] = None,
