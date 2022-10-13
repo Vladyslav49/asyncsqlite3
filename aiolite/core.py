@@ -71,7 +71,10 @@ class Connection(Thread):
             isolation_level: IsolationLevel,
             iter_chunk_size: int
     ) -> None:
-        super().__init__(name=f"aiolite-{get_thread_number()}", daemon=True)
+        self._name = f"aiolite-{get_thread_number()}"
+
+        super().__init__(name=self._name, daemon=True)
+
         self._loop = loop
 
         self._conn: Optional[sqlite3.Connection] = None
@@ -351,11 +354,21 @@ class Connection(Thread):
 
                 if self._row_factory is True:
                     self._conn.row_factory = Record
-            except Exception:
+            except BaseException:
+                self._event.set()
                 self._conn = None
                 raise
 
         return self
+
+    def __repr__(self) -> str:
+        return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
+
+    def __str__(self) -> str:
+        return f'<{type(self).__name__} {self._format()}>'
+
+    def _format(self) -> str:
+        return f'name={self._name} closed={self.is_closed()}'
 
     def __await__(self) -> Generator[Any, None, "Connection"]:
         return self.connector().__await__()

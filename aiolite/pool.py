@@ -21,7 +21,7 @@ class PoolAcquireContext:
 
     async def __aenter__(self) -> Connection:
         if self._conn is not None:
-            raise PoolError("a connection is already acquired")
+            raise PoolError("A connection is already acquired.")
         self._conn = await self._pool._acquire(timeout=self._timeout)
         return self._conn
 
@@ -101,8 +101,8 @@ class Pool:
 
             self._all_connections.append(conn)
 
-        if self._event.is_set():
-            raise PoolError("pool is closed")
+        if self.is_closed():
+            raise PoolError("Pool is closed.")
         else:
             try:
                 return self._waiters.get(timeout=timeout)
@@ -189,6 +189,9 @@ class Pool:
         else:
             return False
 
+    def is_closed(self) -> bool:
+        return not self._all_connections and self._event.is_set()
+
     async def connector(self) -> "Pool":
         """Connect to the sqlite database and put connection in pool."""
         if self._waiters.empty():
@@ -213,7 +216,7 @@ class Pool:
         return f'<{type(self).__name__} {self._format()}>'
 
     def _format(self) -> str:
-        return f'size={self.get_size()!r} min_size={self.get_min_size()!r} max_size={self.get_max_size()!r}'
+        return f'size={self.get_size()} min_size={self.get_min_size()} max_size={self.get_max_size()} closed={self.is_closed()}'
 
     def __await__(self) -> Generator[Any, None, "Pool"]:
         return self.connector().__await__()
