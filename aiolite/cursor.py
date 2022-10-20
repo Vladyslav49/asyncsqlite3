@@ -10,12 +10,13 @@ from .factory import Record
 
 class Cursor:
 
-    __slots__ = ("_iter_chunk_size", "_conn", "_cursor")
+    __slots__ = ("_iter_chunk_size", "_conn", "_cursor", "_closed")
 
     def __init__(self, conn: "Connection", cursor: sqlite3.Cursor) -> None:
         self._iter_chunk_size = conn._iter_chunk_size
         self._conn = conn
         self._cursor = cursor
+        self._closed = False
 
     async def __aiter__(self) -> AsyncIterator[Record]:
         """Async iterator."""
@@ -60,6 +61,7 @@ class Cursor:
     async def close(self) -> None:
         """Close the cursor."""
         await self._conn._put(self._cursor.close)
+        self._closed = True
 
     @property
     def rowcount(self) -> int:
@@ -84,3 +86,12 @@ class Cursor:
     @property
     def connection(self) -> sqlite3.Connection:
         return self._cursor.connection
+
+    def __repr__(self) -> str:
+        return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
+
+    def __str__(self) -> str:
+        return f'<{type(self).__name__} {self._format()}>'
+
+    def _format(self) -> str:
+        return f'connection={self._conn._name} closed={self._closed}'

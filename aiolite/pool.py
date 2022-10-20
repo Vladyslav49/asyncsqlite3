@@ -6,7 +6,8 @@ from types import TracebackType
 from typing import Union, Optional, Type, Generator, Any, Iterable
 from pathlib import Path
 
-from . import Connection, Cursor, connect
+from .core import Connection, connect
+from .cursor import Cursor
 from .exceptions import PoolError
 
 
