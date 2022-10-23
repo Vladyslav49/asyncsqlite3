@@ -52,8 +52,8 @@ class Pool:
     """
 
     __slots__ = (
-        '_database', '_min_size', '_max_size', '_loop',
-        '_row_factory', '_iter_chunk_size', '_connect_kwargs',
+        '_database', '_min_size', '_max_size', '_row_factory',
+        '_iter_chunk_size', '_connect_kwargs',
         '_all_connections', '_waiters', '_event'
     )
 
@@ -64,8 +64,7 @@ class Pool:
             max_size: int,
             row_factory: bool,
             iter_chunk_size: int,
-            loop: Optional[asyncio.AbstractEventLoop],
-            **kwargs
+            **kwargs: Any
     ) -> None:
 
         if max_size <= 0:
@@ -81,7 +80,6 @@ class Pool:
         self._database = database
         self._min_size = min_size
         self._max_size = max_size
-        self._loop = loop
         self._row_factory = row_factory
         self._iter_chunk_size = iter_chunk_size
         self._connect_kwargs = kwargs
@@ -95,8 +93,7 @@ class Pool:
                 self._database,
                 **self._connect_kwargs,
                 row_factory=self._row_factory,
-                iter_chunk_size=self._iter_chunk_size,
-                loop=self._loop
+                iter_chunk_size=self._iter_chunk_size
             )
             self._waiters.put_nowait(conn)
 
@@ -201,8 +198,7 @@ class Pool:
                     self._database,
                     **self._connect_kwargs,
                     row_factory=self._row_factory,
-                    iter_chunk_size=self._iter_chunk_size,
-                    loop=self._loop
+                    iter_chunk_size=self._iter_chunk_size
                 )
                 self._waiters.put_nowait(conn)
 
@@ -241,8 +237,7 @@ def create_pool(
         max_size: int = 10,
         row_factory: bool = True,
         iter_chunk_size: int = 64,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
-        **kwargs
+        **kwargs: Any
 ) -> Pool:
     """Create and return a connection pool.
 
@@ -260,4 +255,4 @@ def create_pool(
     """
 
     return Pool(database, min_size, max_size, row_factory,
-                iter_chunk_size, loop, **kwargs)
+                iter_chunk_size, **kwargs)

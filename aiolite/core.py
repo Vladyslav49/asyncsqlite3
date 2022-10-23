@@ -58,15 +58,14 @@ def get_thread_number() -> int:
 class Connection(Thread):
 
     __slots__ = (
-        "_loop", "_conn", "_connector",
-        "_row_factory",  "_isolation_level",
-        "_iter_chunk_size", "_queue", "_event"
+        "_conn", "_connector", "_row_factory",
+        "_isolation_level", "_iter_chunk_size",
+        "_queue", "_event"
     )
 
     def __init__(
             self,
             connector: Callable[[], sqlite3.Connection],
-            loop: asyncio.AbstractEventLoop,
             row_factory: bool,
             isolation_level: IsolationLevel,
             iter_chunk_size: int
@@ -74,8 +73,6 @@ class Connection(Thread):
         self._name = f"aiolite-{get_thread_number()}"
 
         super().__init__(name=self._name, daemon=True)
-
-        self._loop = loop
 
         self._conn: Optional[sqlite3.Connection] = None
         self._connector = connector
@@ -135,7 +132,7 @@ class Connection(Thread):
         """Queue a function with the given arguments for execution."""
         function = partial(func, *args, **kwargs)
 
-        future = self._loop.create_future()
+        future = asyncio.get_event_loop().create_future()
 
         self._queue.put_nowait((future, function))
 
@@ -165,6 +162,26 @@ class Connection(Thread):
         """Helper to create a cursor and execute a user script."""
         cursor = await self._put(self._conn.executescript, sql_script)
         return Cursor(self, cursor)
+
+    async def fetchone(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Optional[Record]:
+        """Shortcut version of aiolite.Cursor.fetchone."""
+        async with self.execute(sql, parameters) as cur:
+            return await cur.fetchone()
+
+    async def fetchmany(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            size: Optional[int] = None
+    ) -> Iterable[Record]:
+        """Shortcut version of aiolite.Cursor.fetchmany."""
+        async with self.execute(sql, parameters) as cur:
+            return await cur.fetchmany(size)
+
+    async def fetchall(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Iterable[Record]:
+        """Shortcut version of aiolite.Cursor.fetchall."""
+        async with self.execute(sql, parameters) as cur:
+            return await cur.fetchall()
 
     async def commit(self) -> None:
         """Commit the current transaction."""
@@ -396,13 +413,9 @@ def connect(
         cached_statements: int = 128,
         uri: bool = False,
         row_factory: bool = True,
-        iter_chunk_size: int = 64,
-        loop: Optional[asyncio.AbstractEventLoop] = None
+        iter_chunk_size: int = 64
 ) -> Connection:
     """Create and return a connection to the sqlite database."""
-
-    if loop is None:
-        loop = asyncio.get_event_loop()
 
     def connector() -> sqlite3.Connection:
         if isinstance(database, str):
@@ -423,5 +436,5 @@ def connect(
             uri=uri
         )
 
-    return Connection(connector, loop, row_factory,
+    return Connection(connector, row_factory,
                       isolation_level, iter_chunk_size)
