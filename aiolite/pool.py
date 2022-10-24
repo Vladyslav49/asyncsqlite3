@@ -141,30 +141,30 @@ class Pool:
         else:
             raise PoolError("Pool already is closed.")
 
-    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Cursor:
+    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: float = 10.0) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
 
         Other than that, it behaves identically to Connection.execute().
         """
-        async with self.acquire() as conn:
+        async with self.acquire(timeout=timeout) as conn:
             async with conn.transaction():
                 return await conn.execute(sql, parameters)
 
-    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]]) -> Cursor:
+    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]], *, timeout: float = 10.0) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
 
         Other than that, it behaves identically to Connection.executemany().
         """
-        async with self.acquire() as conn:
+        async with self.acquire(timeout=timeout) as conn:
             async with conn.transaction():
                 return await conn.executemany(sql, parameters)
 
-    async def executescript(self, sql_script: str) -> Cursor:
+    async def executescript(self, sql_script: str, *, timeout: float = 10.0) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
 
         Other than that, it behaves identically to Connection.executescript().
         """
-        async with self.acquire() as conn:
+        async with self.acquire(timeout=timeout) as conn:
             async with conn.transaction():
                 return await conn.executescript(sql_script)
 
