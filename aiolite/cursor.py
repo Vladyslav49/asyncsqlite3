@@ -94,4 +94,4 @@ class Cursor:
         return f'<{type(self).__name__} {self._format()}>'
 
     def _format(self) -> str:
-        return f'connection={self._conn._name} closed={self._closed}'
+        return f'connection={self._conn._name!r} closed={self._closed}'

@@ -12,7 +12,6 @@ from .exceptions import PoolError
 
 
 class PoolAcquireContext:
-
     __slots__ = ('_pool', '_timeout', '_conn')
 
     def __init__(self, pool: "Pool", timeout: float) -> None:
@@ -53,8 +52,8 @@ class Pool:
 
     __slots__ = (
         '_database', '_min_size', '_max_size', '_row_factory',
-        '_iter_chunk_size', '_connect_kwargs',
-        '_all_connections', '_waiters', '_event'
+        '_iter_chunk_size', '_connect_kwargs', '_initialized',
+        '_initializing', '_all_connections', '_waiters', '_event'
     )
 
     def __init__(
@@ -83,6 +82,8 @@ class Pool:
         self._row_factory = row_factory
         self._iter_chunk_size = iter_chunk_size
         self._connect_kwargs = kwargs
+        self._initialized = False
+        self._initializing = False
         self._all_connections = []
         self._waiters = Queue(maxsize=self._max_size)
         self._event = Event()
@@ -192,9 +193,16 @@ class Pool:
 
     async def connector(self) -> "Pool":
         """Connect to the sqlite database and put connection in pool."""
-        if self._waiters.empty():
+        if self._initialized:
+            return self
+        if self._initializing:
+            raise PoolError("Pool initialization is already in progress.")
+        if self.is_closed():
+            raise PoolError("Pool is closed.")
+        self._initializing = True
+        try:
             for _ in range(self._min_size):
-                conn = await connect(
+                conn = connect(
                     self._database,
                     **self._connect_kwargs,
                     row_factory=self._row_factory,
@@ -204,7 +212,12 @@ class Pool:
 
                 self._all_connections.append(conn)
 
-        return self
+            await asyncio.gather(*self._all_connections)
+
+            return self
+        finally:
+            self._initializing = False
+            self._initialized = True
 
     def __repr__(self) -> str:
         return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'

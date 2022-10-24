@@ -8,7 +8,7 @@ class Record(Row):
         except IndexError:
             return default
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         result = f'<{type(self).__name__}'
         for key, value in dict(self).items():
             result += f' {key}={value}'

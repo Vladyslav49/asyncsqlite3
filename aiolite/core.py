@@ -385,7 +385,7 @@ class Connection(Thread):
         return f'<{type(self).__name__} {self._format()}>'
 
     def _format(self) -> str:
-        return f'name={self._name} closed={self.is_closed()}'
+        return f'name={self._name!r} closed={self.is_closed()}'
 
     def __await__(self) -> Generator[Any, None, "Connection"]:
         return self.connector().__await__()
