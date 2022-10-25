@@ -12,6 +12,7 @@ from .exceptions import PoolError
 
 
 class PoolAcquireContext:
+
     __slots__ = ('_pool', '_timeout', '_conn')
 
     def __init__(self, pool: "Pool", timeout: float) -> None:

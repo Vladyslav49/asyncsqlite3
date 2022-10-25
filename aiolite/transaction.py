@@ -98,13 +98,23 @@ class Transaction:
         else:
             self._state = TransactionState.ROLLEDBACK
 
-    async def __aenter__(self) -> None:
+    @property
+    def state(self) -> str:
+        return self._state.name
+
+    @property
+    def isolation_level(self) -> Optional[str]:
+        return self._isolation
+
+    async def __aenter__(self) -> "Transaction":
         if self._managed:
             raise TransactionError(
                 "cannot enter context: already in an `async with` block")
         else:
             self._managed = True
         await self.start()
+
+        return self
 
     async def __aexit__(
             self,
@@ -119,3 +129,15 @@ class Transaction:
                 await self._commit()
         finally:
             self._managed = False
+
+    def __repr__(self) -> str:
+        return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
+
+    def __str__(self) -> str:
+        return f'<{type(self).__name__} {self._format()}>'
+
+    def _format(self) -> str:
+        text = f'state={self._state.name!r}'
+        if self._isolation is not None:
+            text += f' isolation_level={self._isolation!r}'
+        return text

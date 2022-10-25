@@ -49,7 +49,7 @@ def get_loop(future: asyncio.Future) -> asyncio.AbstractEventLoop:
         return future._loop
 
 
-def get_thread_number() -> int:
+def _get_thread_number() -> int:
     global num
     num += 1
     return num
@@ -70,7 +70,7 @@ class Connection(Thread):
             isolation_level: IsolationLevel,
             iter_chunk_size: int
     ) -> None:
-        self._name = f"aiolite-{get_thread_number()}"
+        self._name = f"aiolite-{_get_thread_number()}"
 
         super().__init__(name=self._name, daemon=True)
 
