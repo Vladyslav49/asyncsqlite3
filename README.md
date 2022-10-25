@@ -33,7 +33,7 @@ async with aiolite.create_pool(..., min_size=1, max_size=2) as pool:
     async with pool.acquire() as conn:
         async with conn.execute("SELECT id, name FROM some_table") as cursor:
             async for row in cursor:
-                print(row) # <Record id=1 name=alex>
+                print(row) # <Record id=1 name='alex'>
                 print(row[0], row["id"], row.get("id")) # 1 1 1
                 print(dict(row)) # {'id': 1, 'name': 'alex'}
                 print(tuple(row), list(row), set(row)) # (1, 'alex') [1, 'alex'] {1, 'alex'}
