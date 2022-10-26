@@ -100,25 +100,25 @@ class Connection(Thread):
                     try:
                         result = function()
                     except sqlite3.IntegrityError as error:
-                        raise IntegrityError(error)
+                        raise IntegrityError(error) from None
                     except sqlite3.NotSupportedError as error:
-                        raise NotSupportedError(error)
+                        raise NotSupportedError(error) from None
                     except sqlite3.DataError as error:
-                        raise DataError(error)
+                        raise DataError(error) from None
                     except sqlite3.InterfaceError as error:
-                        raise InterfaceError(error)
+                        raise InterfaceError(error) from None
                     except sqlite3.InternalError as error:
-                        raise InternalError(error)
+                        raise InternalError(error) from None
                     except sqlite3.ProgrammingError as error:
-                        raise ProgrammingError(error)
+                        raise ProgrammingError(error) from None
                     except sqlite3.OperationalError as error:
-                        raise OperationalError(error)
+                        raise OperationalError(error) from None
                     except sqlite3.DatabaseError as error:
-                        raise DatabaseError(error)
+                        raise DatabaseError(error) from None
                     except sqlite3.Error as error:
-                        raise Error(error)
+                        raise Error(error) from None
                     except sqlite3.Warning as error:
-                        raise Warning(error)
+                        raise Warning(error) from None
 
                     logger.debug("operation %s completed", function)
 

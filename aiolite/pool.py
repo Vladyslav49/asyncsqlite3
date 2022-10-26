@@ -37,7 +37,10 @@ class PoolAcquireContext:
         await self._pool.release(conn)
 
     def __await__(self):
-        return self._pool._acquire(timeout=self._timeout).__await__()
+        if self._conn is not None:
+            raise PoolError("A connection is already acquired.")
+        self._conn = yield from self._pool._acquire(timeout=self._timeout).__await__()
+        return self._conn
 
 
 class Pool:
@@ -86,11 +89,11 @@ class Pool:
         self._initialized = False
         self._initializing = False
         self._all_connections = []
-        self._waiters = Queue(maxsize=self._max_size)
+        self._waiters = Queue(maxsize=self.get_max_size())
         self._event = Event()
 
     async def _acquire(self, *, timeout: float) -> Connection:
-        if len(self._all_connections) < self._max_size:
+        if len(self._all_connections) < self.get_max_size():
             conn = await connect(
                 self._database,
                 **self._connect_kwargs,
@@ -107,7 +110,7 @@ class Pool:
             try:
                 return self._waiters.get(timeout=timeout)
             except Empty:
-                raise PoolError("There are no free connections in the pool.")
+                raise PoolError("There are no free connections in the pool.") from None
 
     def acquire(self, *, timeout: float = 10.0) -> PoolAcquireContext:
         """Acquire a database connection from the pool."""
@@ -184,7 +187,7 @@ class Pool:
 
     def _pool_is_full(self) -> bool:
         while not self._event.is_set():
-            if len(self._all_connections) == self._waiters.qsize():
+            if len(self._all_connections) == self.get_size():
                 return True
         else:
             return False
@@ -202,7 +205,7 @@ class Pool:
             raise PoolError("Pool is closed.")
         self._initializing = True
         try:
-            for _ in range(self._min_size):
+            for _ in range(self.get_min_size()):
                 conn = connect(
                     self._database,
                     **self._connect_kwargs,
@@ -270,3 +273,4 @@ def create_pool(
 
     return Pool(database, min_size, max_size, row_factory,
                 iter_chunk_size, **kwargs)
+
