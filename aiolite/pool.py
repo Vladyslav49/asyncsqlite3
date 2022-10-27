@@ -15,7 +15,7 @@ class PoolAcquireContext:
 
     __slots__ = ('_pool', '_timeout', '_conn')
 
-    def __init__(self, pool: "Pool", timeout: float) -> None:
+    def __init__(self, pool: "Pool", timeout: Optional[float]) -> None:
         self._pool = pool
         self._timeout = timeout
         self._conn = None
@@ -34,7 +34,7 @@ class PoolAcquireContext:
     ) -> None:
         conn = self._conn
         self._conn = None
-        await self._pool.release(conn)
+        self._pool.release(conn)
 
     def __await__(self):
         if self._conn is not None:
@@ -45,12 +45,10 @@ class PoolAcquireContext:
 
 class Pool:
     """A connection pool.
-
     Connection pool can be used to manage a set of connections to the database.
     Connections are first acquired from the pool, then used, and then released
     back to the pool. Once a connection is released, it's reset to close all
     open cursors and other resources *except* prepared statements.
-
     Pools are created by calling :func: `aiolite.create_pool`.
     """
 
@@ -92,7 +90,7 @@ class Pool:
         self._waiters = Queue(maxsize=self.get_max_size())
         self._event = Event()
 
-    async def _acquire(self, *, timeout: float) -> Connection:
+    async def _acquire(self, *, timeout: Optional[float]) -> Connection:
         if len(self._all_connections) < self.get_max_size():
             conn = await connect(
                 self._database,
@@ -100,73 +98,67 @@ class Pool:
                 row_factory=self._row_factory,
                 iter_chunk_size=self._iter_chunk_size
             )
-            self._waiters.put_nowait(conn)
+            self._waiters.put(conn)
 
             self._all_connections.append(conn)
 
         if self.is_closed():
             raise PoolError("Pool is closed.")
-        else:
-            try:
-                return self._waiters.get(timeout=timeout)
-            except Empty:
-                raise PoolError("There are no free connections in the pool.") from None
 
-    def acquire(self, *, timeout: float = 10.0) -> PoolAcquireContext:
+        try:
+            return self._waiters.get(timeout=timeout)
+        except Empty:
+            raise PoolError("There are no free connections in the pool.") from None
+
+    def acquire(self, *, timeout: Optional[float] = 10.0) -> PoolAcquireContext:
         """Acquire a database connection from the pool."""
         return PoolAcquireContext(self, timeout)
 
-    async def release(self, conn: Connection) -> None:
+    def release(self, conn: Connection) -> None:
         """Release a database connection back to the pool."""
+        if self.is_closed():
+            raise PoolError("Pool is closed.")
         if conn not in self._all_connections:
             raise PoolError("Connection not found.")
-        elif str(conn) not in str(self._waiters):
-            self._waiters.put_nowait(conn)
-        elif str(conn) in str(self._waiters):
+        if conn in self._waiters.queue:
             raise PoolError("The connection is already in the pool.")
+
+        if conn not in self._waiters.queue:
+            self._waiters.put(conn)
 
     async def close(self) -> None:
         """Attempt to gracefully close all connections in the pool."""
-        if self._pool_is_full():
-            for conn in self._all_connections:
-                await conn.close()
-        if not self._event.is_set():
-            self._event.set()
-            self._all_connections.clear()
-        else:
-            raise PoolError("Pool already is closed.")
+        while not self._event.is_set():
+            if len(self._all_connections) == self.get_size():
+                await self.terminate()
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""
+        if self.is_closed():
+            return
         for conn in self._all_connections:
             await conn.close()
-        if not self._event.is_set():
-            self._event.set()
-            self._all_connections.clear()
-        else:
-            raise PoolError("Pool already is closed.")
+        self._event.set()
+        self._all_connections.clear()
 
-    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: float = 10.0) -> Cursor:
-        """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
-
+    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: Optional[float] = 10.0) -> Cursor:
+        """Pool performs this operation using one of its connections and Connection.transaction().
         Other than that, it behaves identically to Connection.execute().
         """
         async with self.acquire(timeout=timeout) as conn:
             async with conn.transaction():
                 return await conn.execute(sql, parameters)
 
-    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]], *, timeout: float = 10.0) -> Cursor:
-        """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
-
+    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]], *, timeout: Optional[float] = 10.0) -> Cursor:
+        """Pool performs this operation using one of its connections and Connection.transaction().
         Other than that, it behaves identically to Connection.executemany().
         """
         async with self.acquire(timeout=timeout) as conn:
             async with conn.transaction():
                 return await conn.executemany(sql, parameters)
 
-    async def executescript(self, sql_script: str, *, timeout: float = 10.0) -> Cursor:
-        """Pool performs this operation using one of its connections and Connection.transaction() to auto-commit.
-
+    async def executescript(self, sql_script: str, *, timeout: Optional[float] = 10.0) -> Cursor:
+        """Pool performs this operation using one of its connections and Connection.transaction().
         Other than that, it behaves identically to Connection.executescript().
         """
         async with self.acquire(timeout=timeout) as conn:
@@ -184,13 +176,6 @@ class Pool:
     def get_size(self) -> int:
         """Return the current number of idle connections in this pool."""
         return self._waiters.qsize()
-
-    def _pool_is_full(self) -> bool:
-        while not self._event.is_set():
-            if len(self._all_connections) == self.get_size():
-                return True
-        else:
-            return False
 
     def is_closed(self) -> bool:
         return not self._all_connections and self._event.is_set()
@@ -212,7 +197,7 @@ class Pool:
                     row_factory=self._row_factory,
                     iter_chunk_size=self._iter_chunk_size
                 )
-                self._waiters.put_nowait(conn)
+                self._waiters.put(conn)
 
                 self._all_connections.append(conn)
 
@@ -257,20 +242,15 @@ def create_pool(
         **kwargs: Any
 ) -> Pool:
     """Create and return a connection pool.
-
     :param database:
         Path to the database file.
-
     :param min_size:
         Number of connection the pool will be initialized with.
-
     :param max_size:
         Max number of connections in the pool.
-
     :param row_factory:
         aiolite.Record factory to all connections of the pool.
     """
 
     return Pool(database, min_size, max_size, row_factory,
                 iter_chunk_size, **kwargs)
-

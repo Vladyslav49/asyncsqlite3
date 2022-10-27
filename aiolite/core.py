@@ -255,12 +255,12 @@ class Connection(Thread):
         def dumper():
             try:
                 for line in self._conn.iterdump():
-                    queue.put_nowait(line)
-                queue.put_nowait(None)
+                    queue.put(line)
+                queue.put(None)
 
             except Exception:
                 logger.exception("exception while dumping db")
-                queue.put_nowait(None)
+                queue.put(None)
                 raise
 
         fut = self._put(dumper)
