@@ -45,10 +45,12 @@ class PoolAcquireContext:
 
 class Pool:
     """A connection pool.
+
     Connection pool can be used to manage a set of connections to the database.
     Connections are first acquired from the pool, then used, and then released
     back to the pool. Once a connection is released, it's reset to close all
     open cursors and other resources *except* prepared statements.
+
     Pools are created by calling :func: `aiolite.create_pool`.
     """
 
@@ -110,7 +112,7 @@ class Pool:
         except Empty:
             raise PoolError("There are no free connections in the pool.") from None
 
-    def acquire(self, *, timeout: Optional[float] = 10.0) -> PoolAcquireContext:
+    def acquire(self, *, timeout: Optional[float] = None) -> PoolAcquireContext:
         """Acquire a database connection from the pool."""
         return PoolAcquireContext(self, timeout)
 
@@ -128,20 +130,20 @@ class Pool:
 
     async def close(self) -> None:
         """Attempt to gracefully close all connections in the pool."""
-        while not self._event.is_set():
+        while not self.is_closed():
             if len(self._all_connections) == self.get_size():
                 await self.terminate()
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""
-        if self.is_closed():
-            return
-        for conn in self._all_connections:
-            await conn.close()
-        self._event.set()
-        self._all_connections.clear()
+        if not self.is_closed():
+            try:
+                await asyncio.gather(*[conn.close() for conn in self._all_connections])
+            finally:
+                self._event.set()
+                self._all_connections.clear()
 
-    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: Optional[float] = 10.0) -> Cursor:
+    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: Optional[float] = None) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction().
         Other than that, it behaves identically to Connection.execute().
         """
@@ -149,7 +151,7 @@ class Pool:
             async with conn.transaction():
                 return await conn.execute(sql, parameters)
 
-    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]], *, timeout: Optional[float] = 10.0) -> Cursor:
+    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]], *, timeout: Optional[float] = None) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction().
         Other than that, it behaves identically to Connection.executemany().
         """
@@ -157,7 +159,7 @@ class Pool:
             async with conn.transaction():
                 return await conn.executemany(sql, parameters)
 
-    async def executescript(self, sql_script: str, *, timeout: Optional[float] = 10.0) -> Cursor:
+    async def executescript(self, sql_script: str, *, timeout: Optional[float] = None) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction().
         Other than that, it behaves identically to Connection.executescript().
         """
@@ -242,12 +244,16 @@ def create_pool(
         **kwargs: Any
 ) -> Pool:
     """Create and return a connection pool.
+
     :param database:
         Path to the database file.
+
     :param min_size:
         Number of connection the pool will be initialized with.
+
     :param max_size:
         Max number of connections in the pool.
+
     :param row_factory:
         aiolite.Record factory to all connections of the pool.
     """
