@@ -1,50 +1,27 @@
-# Context manager received from aiosqlite module.
-
 from functools import wraps
 from types import TracebackType
 from typing import (
+    Generator,
     Any,
-    AsyncContextManager,
     Optional,
     Type,
-    Callable,
-    Coroutine,
-    Generator,
-    TypeVar
+    Coroutine
 )
 
 from .cursor import Cursor
 
-_T = TypeVar("_T")
 
-
-class Result(AsyncContextManager[_T], Coroutine[Any, Any, _T]):
+class ContextManager:
 
     __slots__ = ("_coro", "_obj")
 
-    def __init__(self, coro: Coroutine[Any, Any, _T]):
+    def __init__(self, coro: Coroutine[Any, Any, Any]):
         self._coro = coro
-        self._obj: _T
 
-    def send(self, value) -> None:
-        return self._coro.send(value)
-
-    def throw(self, typ, val=None, tb=None) -> None:
-        if val is None:
-            return self._coro.throw(typ)
-
-        if tb is None:
-            return self._coro.throw(typ, val)
-
-        return self._coro.throw(typ, val, tb)
-
-    def close(self) -> None:
-        return self._coro.close()
-
-    def __await__(self) -> Generator[Any, None, _T]:
+    def __await__(self) -> Generator[Any, None, "ContextManager"]:
         return self._coro.__await__()
 
-    async def __aenter__(self) -> _T:
+    async def __aenter__(self) -> Cursor:
         self._obj = await self._coro
         return self._obj
 
@@ -54,15 +31,12 @@ class Result(AsyncContextManager[_T], Coroutine[Any, Any, _T]):
             exc_val: Optional[BaseException],
             exc_tb: Optional[TracebackType]
     ) -> None:
-        if isinstance(self._obj, Cursor):
-            await self._obj.close()
+        await self._obj.close()
 
 
-def contextmanager(
-    method: Callable[..., Coroutine[Any, Any, _T]]
-) -> Callable[..., Result[_T]]:
+def contextmanager(method):
     @wraps(method)
-    def wrapper(self, *args, **kwargs) -> Result[_T]:
-        return Result(method(self, *args, **kwargs))
-
+    def wrapper(self, *args, **kwargs):
+        return ContextManager(method(self, *args, **kwargs))
     return wrapper
+

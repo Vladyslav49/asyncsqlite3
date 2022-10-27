@@ -79,7 +79,7 @@ class Connection(Thread):
 
     def run(self) -> None:
         """Execute function calls on a separate thread."""
-        while not self._event.is_set():
+        while not self.is_closed():
             # Continues running until all queue items are processed,
             # even after connection is closed (so we can finalize all futures)
             try:
@@ -186,7 +186,7 @@ class Connection(Thread):
 
     async def close(self) -> None:
         """Complete queued queries/cursors and close the connection."""
-        if not self._event.is_set() and self._conn is not None:
+        if not self.is_closed():
             try:
                 await self._put(self._conn.close)
             finally:
