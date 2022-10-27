@@ -56,13 +56,6 @@ def _get_thread_number() -> int:
 
 
 class Connection(Thread):
-
-    __slots__ = (
-        "_conn", "_connector", "_row_factory",
-        "_isolation_level", "_iter_chunk_size",
-        "_queue", "_event"
-    )
-
     def __init__(
             self,
             connector: Callable[[], sqlite3.Connection],
@@ -134,7 +127,7 @@ class Connection(Thread):
 
         future = asyncio.get_event_loop().create_future()
 
-        self._queue.put_nowait((future, function))
+        self._queue.put((future, function))
 
         return await future
 
