@@ -93,6 +93,9 @@ class Pool:
         self._event = Event()
 
     async def _acquire(self, *, timeout: Optional[float]) -> Connection:
+        if self.is_closed():
+            raise PoolError("Pool is closed.")
+
         if len(self._all_connections) < self.get_max_size():
             conn = await connect(
                 self._database,
@@ -104,11 +107,10 @@ class Pool:
 
             self._all_connections.append(conn)
 
-        if self.is_closed():
-            raise PoolError("Pool is closed.")
-
         try:
-            return self._waiters.get(timeout=timeout)
+            conn = self._waiters.get(timeout=timeout)
+            conn._in_use = asyncio.get_event_loop().create_future()
+            return conn
         except Empty:
             raise PoolError("There are no free connections in the pool.") from None
 
@@ -124,15 +126,20 @@ class Pool:
             raise PoolError("Connection not found.")
         if conn in self._waiters.queue:
             raise PoolError("The connection is already in the pool.")
+        if conn._in_use is None:
+            raise PoolError("The connection is not currently used by the pool.")
 
         if conn not in self._waiters.queue:
+            if not conn._in_use.done():
+                conn._in_use.set_result(None)
+            conn._in_use = None
+
             self._waiters.put(conn)
 
     async def close(self) -> None:
         """Attempt to gracefully close all connections in the pool."""
-        while not self.is_closed():
-            if len(self._all_connections) == self.get_size():
-                await self.terminate()
+        await asyncio.gather(*[conn.wait_until_released() for conn in self._all_connections])
+        await self.terminate()
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""

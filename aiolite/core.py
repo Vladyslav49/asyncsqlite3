@@ -67,6 +67,7 @@ class Connection(Thread):
 
         super().__init__(name=self._name, daemon=True)
 
+        self._in_use: Optional[asyncio.Future] = None
         self._conn: Optional[sqlite3.Connection] = None
         self._connector = connector
 
@@ -310,6 +311,10 @@ class Connection(Thread):
             name=name,
             sleep=sleep,
         )
+
+    async def wait_until_released(self) -> None:
+        if self._in_use is not None:
+            await self._in_use
 
     def transaction(self) -> Transaction:
         """Gets a transaction object."""
