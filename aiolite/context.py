@@ -39,4 +39,3 @@ def contextmanager(method):
     def wrapper(self, *args, **kwargs):
         return ContextManager(method(self, *args, **kwargs))
     return wrapper
-

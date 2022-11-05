@@ -1,4 +1,4 @@
-# sqlite3
+# aiolite
 class Warning(Exception):
     pass
 

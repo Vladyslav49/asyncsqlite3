@@ -143,12 +143,14 @@ class Pool:
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""
-        if not self.is_closed():
-            try:
-                await asyncio.gather(*[conn.close() for conn in self._all_connections])
-            finally:
-                self._event.set()
-                self._all_connections.clear()
+        if self.is_closed():
+            raise PoolError("Pool is closed.")
+
+        try:
+            await asyncio.gather(*[conn.close() for conn in self._all_connections])
+        finally:
+            self._event.set()
+            self._all_connections.clear()
 
     async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: Optional[float] = None) -> Cursor:
         """Pool performs this operation using one of its connections and Connection.transaction().
@@ -264,6 +266,5 @@ def create_pool(
     :param row_factory:
         aiolite.Record factory to all connections of the pool.
     """
-
     return Pool(database, min_size, max_size, row_factory,
                 iter_chunk_size, **kwargs)

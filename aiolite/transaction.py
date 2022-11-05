@@ -103,7 +103,7 @@ class Transaction:
         return self._state.name
 
     @property
-    def isolation_level(self) -> Optional[str]:
+    def isolation_level(self) -> IsolationLevel:
         return self._isolation
 
     async def __aenter__(self) -> "Transaction":

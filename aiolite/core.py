@@ -39,7 +39,7 @@ from .exceptions import (
 
 logger = getLogger(__name__)
 
-num = 0
+_count = 0
 
 
 def get_loop(future: asyncio.Future) -> asyncio.AbstractEventLoop:
@@ -49,10 +49,10 @@ def get_loop(future: asyncio.Future) -> asyncio.AbstractEventLoop:
         return future._loop
 
 
-def _get_thread_number() -> int:
-    global num
-    num += 1
-    return num
+def _new_connection() -> int:
+    global _count
+    _count += 1
+    return _count
 
 
 class Connection(Thread):
@@ -63,7 +63,7 @@ class Connection(Thread):
             isolation_level: IsolationLevel,
             iter_chunk_size: int
     ) -> None:
-        self._name = f"aiolite-{_get_thread_number()}"
+        self._name = f"aiolite-{_new_connection()}"
 
         super().__init__(name=self._name, daemon=True)
 
