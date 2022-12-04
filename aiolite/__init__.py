@@ -28,32 +28,32 @@ from .exceptions import (
     PoolError
 )
 
-__author__ = "Vladyslav49"
-__license__ = "MIT"
+__author__ = 'Vladyslav49'
+__license__ = 'MIT'
 
 __all__ = [
-    "register_adapter",
-    "register_converter",
-    "sqlite_version",
-    "sqlite_version_info",
-    "Row",
-    "connect",
-    "Connection",
-    "Cursor",
-    "create_pool",
-    "Pool",
-    "Record",
-    "Transaction",
-    "Warning",
-    "Error",
-    "DatabaseError",
-    "DataError",
-    "IntegrityError",
-    "InterfaceError",
-    "InternalError",
-    "NotSupportedError",
-    "OperationalError",
-    "ProgrammingError",
-    "TransactionError",
-    "PoolError"
+    'register_adapter',
+    'register_converter',
+    'sqlite_version',
+    'sqlite_version_info',
+    'Row',
+    'connect',
+    'Connection',
+    'Cursor',
+    'create_pool',
+    'Pool',
+    'Record',
+    'Transaction',
+    'Warning',
+    'Error',
+    'DatabaseError',
+    'DataError',
+    'IntegrityError',
+    'InterfaceError',
+    'InternalError',
+    'NotSupportedError',
+    'OperationalError',
+    'ProgrammingError',
+    'TransactionError',
+    'PoolError'
 ]

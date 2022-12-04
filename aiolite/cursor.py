@@ -1,6 +1,14 @@
 import sqlite3
 
-from typing import AsyncIterator, Any, Iterable, Optional, Tuple, TYPE_CHECKING
+from typing import (
+    AsyncIterator,
+    Any,
+    Iterable,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+    Type
+)
 
 if TYPE_CHECKING:
     from .core import Connection
@@ -10,7 +18,7 @@ from .factory import Record
 
 class Cursor:
 
-    __slots__ = ("_iter_chunk_size", "_conn", "_cursor", "_closed")
+    __slots__ = ('_iter_chunk_size', '_conn', '_cursor', '_closed')
 
     def __init__(self, conn: "Connection", cursor: sqlite3.Cursor) -> None:
         self._iter_chunk_size = conn._iter_chunk_size
@@ -27,36 +35,58 @@ class Cursor:
             for row in rows:
                 yield row
 
-    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> "Cursor":
+    async def execute(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            timeout: Optional[float] = None
+    ) -> "Cursor":
         """Execute the given query."""
         if parameters is None:
             parameters = []
-        await self._conn._put(self._cursor.execute, sql, parameters)
+        await self._conn._put(self._cursor.execute, sql, parameters, timeout=timeout)
         return self
 
-    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]]) -> "Cursor":
+    async def executemany(
+            self,
+            sql: str,
+            parameters: Iterable[Iterable[Any]],
+            *,
+            timeout: Optional[float] = None
+    ) -> "Cursor":
         """Execute the given multiquery."""
-        await self._conn._put(self._cursor.executemany, sql, parameters)
+        await self._conn._put(self._cursor.executemany, sql, parameters, timeout=timeout)
         return self
 
-    async def executescript(self, sql_script: str) -> "Cursor":
+    async def executescript(
+            self,
+            sql_script: str,
+            *,
+            timeout: Optional[float] = None
+    ) -> "Cursor":
         """Execute a user script."""
-        await self._conn._put(self._cursor.executescript, sql_script)
+        await self._conn._put(self._cursor.executescript, sql_script, timeout=timeout)
         return self
 
-    async def fetchone(self) -> Optional[Record]:
+    async def fetchone(self, *, timeout: Optional[float] = None) -> Optional[Record]:
         """Fetch a single row."""
-        return await self._conn._put(self._cursor.fetchone)
+        return await self._conn._put(self._cursor.fetchone, timeout=timeout)
 
-    async def fetchmany(self, size: Optional[int] = None) -> Iterable[Record]:
+    async def fetchmany(
+            self,
+            size: Optional[int] = None,
+            *,
+            timeout: Optional[float] = None
+    ) -> Iterable[Record]:
         """Fetch up to `cursor.arraysize` number of rows."""
         if size is None:
             size = self.arraysize
-        return await self._conn._put(self._cursor.fetchmany, size)
+        return await self._conn._put(self._cursor.fetchmany, size, timeout=timeout)
 
-    async def fetchall(self) -> Iterable[Record]:
+    async def fetchall(self, *, timeout: Optional[float] = None) -> Iterable[Record]:
         """Fetch all remaining rows."""
-        return await self._conn._put(self._cursor.fetchall)
+        return await self._conn._put(self._cursor.fetchall, timeout=timeout)
 
     async def close(self) -> None:
         """Close the cursor."""
@@ -87,11 +117,19 @@ class Cursor:
     def connection(self) -> sqlite3.Connection:
         return self._cursor.connection
 
+    @property
+    def row_factory(self) -> Optional[Type]:
+        return self._cursor.row_factory
+
+    @row_factory.setter
+    def row_factory(self, factory: Optional[Type]) -> None:
+        self._cursor.row_factory = factory
+
     def __repr__(self) -> str:
-        return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
+        return f'<Cursor at {id(self):#x} {self._format()}>'
 
     def __str__(self) -> str:
-        return f'<{type(self).__name__} {self._format()}>'
+        return f'<Cursor {self._format()}>'
 
     def _format(self) -> str:
         return f'connection={self._conn._name!r} closed={self._closed}'

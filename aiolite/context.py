@@ -13,7 +13,7 @@ from .cursor import Cursor
 
 class ContextManager:
 
-    __slots__ = ("_coro", "_obj")
+    __slots__ = ('_coro', '_obj')
 
     def __init__(self, coro: Coroutine[Any, Any, Any]):
         self._coro = coro

@@ -20,6 +20,8 @@ from warnings import warn
 from threading import Thread, Event
 from queue import Queue, Empty
 
+import async_timeout
+
 from .cursor import Cursor
 from .context import contextmanager
 from .factory import Record
@@ -63,11 +65,10 @@ class Connection(Thread):
             isolation_level: IsolationLevel,
             iter_chunk_size: int
     ) -> None:
-        self._name = f"aiolite-{_new_connection()}"
+        self._name = f'aiolite-{_new_connection()}'
 
         super().__init__(name=self._name, daemon=True)
 
-        self._in_use: Optional[asyncio.Future] = None
         self._conn: Optional[sqlite3.Connection] = None
         self._connector = connector
 
@@ -89,7 +90,7 @@ class Connection(Thread):
                 pass
             else:
                 try:
-                    logger.debug("executing: %s", function)
+                    logger.debug('executing: %s', function)
 
                     try:
                         result = function()
@@ -114,15 +115,15 @@ class Connection(Thread):
                     except sqlite3.Warning as error:
                         raise Warning(error) from None
 
-                    logger.debug("operation %s completed", function)
+                    logger.debug('operation %s completed', function)
 
                     get_loop(future).call_soon_threadsafe(future.set_result, result)
                 except BaseException as error:
-                    logger.debug("returning exception: %s", error)
+                    logger.debug('returning exception: %s', error)
 
                     get_loop(future).call_soon_threadsafe(future.set_exception, error)
 
-    async def _put(self, func, *args, **kwargs):
+    async def _put(self, func, *args, timeout=None, **kwargs):
         """Queue a function with the given arguments for execution."""
         function = partial(func, *args, **kwargs)
 
@@ -130,7 +131,13 @@ class Connection(Thread):
 
         self._queue.put((future, function))
 
-        return await future
+        if timeout is not None:
+            async with async_timeout.timeout(timeout):
+                result = await future
+        else:
+            result = await future
+
+        return result
 
     @contextmanager
     async def cursor(self) -> Cursor:
@@ -138,43 +145,74 @@ class Connection(Thread):
         return Cursor(self, await self._put(self._conn.cursor))
 
     @contextmanager
-    async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Cursor:
+    async def execute(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            timeout: Optional[float] = None
+    ) -> Cursor:
         """Helper to create a cursor and execute the given query."""
         if parameters is None:
             parameters = []
-        cursor = await self._put(self._conn.execute, sql, parameters)
+        cursor = await self._put(self._conn.execute, sql, parameters, timeout=timeout)
         return Cursor(self, cursor)
 
     @contextmanager
-    async def executemany(self, sql: str, parameters: Iterable[Iterable[Any]]) -> Cursor:
+    async def executemany(
+            self,
+            sql: str,
+            parameters: Iterable[Iterable[Any]],
+            *,
+            timeout: Optional[float] = None
+    ) -> Cursor:
         """Helper to create a cursor and execute the given multiquery."""
-        cursor = await self._put(self._conn.executemany, sql, parameters)
+        cursor = await self._put(self._conn.executemany, sql, parameters, timeout=timeout)
         return Cursor(self, cursor)
 
     @contextmanager
-    async def executescript(self, sql_script: str) -> Cursor:
+    async def executescript(
+            self,
+            sql_script: str,
+            *,
+            timeout: Optional[float] = None
+    ) -> Cursor:
         """Helper to create a cursor and execute a user script."""
-        cursor = await self._put(self._conn.executescript, sql_script)
+        cursor = await self._put(self._conn.executescript, sql_script, timeout=timeout)
         return Cursor(self, cursor)
 
-    async def fetchone(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Optional[Record]:
+    async def fetchone(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            timeout: Optional[float] = None
+    ) -> Optional[Record]:
         """Shortcut version of aiolite.Cursor.fetchone."""
-        async with self.execute(sql, parameters) as cur:
+        async with self.execute(sql, parameters, timeout=timeout) as cur:
             return await cur.fetchone()
 
     async def fetchmany(
             self,
             sql: str,
             parameters: Optional[Iterable[Any]] = None,
-            size: Optional[int] = None
+            size: Optional[int] = None,
+            *,
+            timeout: Optional[float] = None
     ) -> Iterable[Record]:
         """Shortcut version of aiolite.Cursor.fetchmany."""
-        async with self.execute(sql, parameters) as cur:
+        async with self.execute(sql, parameters, timeout=timeout) as cur:
             return await cur.fetchmany(size)
 
-    async def fetchall(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Iterable[Record]:
+    async def fetchall(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            timeout: Optional[float] = None
+    ) -> Iterable[Record]:
         """Shortcut version of aiolite.Cursor.fetchall."""
-        async with self.execute(sql, parameters) as cur:
+        async with self.execute(sql, parameters, timeout=timeout) as cur:
             return await cur.fetchall()
 
     async def commit(self) -> None:
@@ -251,37 +289,8 @@ class Connection(Thread):
             async for line in db.iterdump():
                 ...
         """
-        queue = Queue()
-
-        def dumper():
-            try:
-                for line in self._conn.iterdump():
-                    queue.put(line)
-                queue.put(None)
-
-            except Exception:
-                logger.exception("exception while dumping db")
-                queue.put(None)
-                raise
-
-        fut = self._put(dumper)
-        task = asyncio.ensure_future(fut)
-
-        while True:
-            try:
-                line: Optional[str] = queue.get_nowait()
-                if line is None:
-                    break
-                yield line
-
-            except Empty:
-                if task.done():
-                    logger.warning("iterdump completed unexpectedly")
-                    break
-
-                await asyncio.sleep(0.01)
-
-        await task
+        for line in await self._put(self._conn.iterdump):
+            yield line
 
     async def backup(
             self,
@@ -298,7 +307,7 @@ class Connection(Thread):
         Takes either a standard sqlite3 or aiolite Connection object as the target.
         """
         if sys.version_info < (3, 7):
-            raise NotSupportedError("backup() method is only available on Python 3.7+")
+            raise NotSupportedError('backup() method is only available on Python 3.7+')
 
         if isinstance(target, Connection):
             target = target._conn
@@ -312,13 +321,16 @@ class Connection(Thread):
             sleep=sleep,
         )
 
-    async def wait_until_released(self) -> None:
-        if self._in_use is not None:
-            await self._in_use
-
-    def transaction(self) -> Transaction:
+    def transaction(
+            self,
+            isolation_level: IsolationLevel = None,
+            *,
+            timeout: Optional[float] = None
+    ) -> Transaction:
         """Gets a transaction object."""
-        return Transaction(self, self.isolation_level)
+        if isolation_level is None:
+            isolation_level = self._isolation_level
+        return Transaction(self, isolation_level, timeout)
 
     def is_closed(self) -> bool:
         return self._event.is_set() and self._conn is None
@@ -359,7 +371,7 @@ class Connection(Thread):
     def total_changes(self) -> int:
         return self._conn.total_changes
 
-    async def connector(self) -> "Connection":
+    async def _initialization(self) -> "Connection":
         """Connect to the sqlite database."""
         if self._conn is None:
             try:
@@ -377,16 +389,16 @@ class Connection(Thread):
         return self
 
     def __repr__(self) -> str:
-        return f'<{type(self).__name__} at {id(self):#x} {self._format()}>'
+        return f'<Connection at {id(self):#x} {self._format()}>'
 
     def __str__(self) -> str:
-        return f'<{type(self).__name__} {self._format()}>'
+        return f'<Connection {self._format()}>'
 
     def _format(self) -> str:
         return f'name={self._name!r} closed={self.is_closed()}'
 
     def __await__(self) -> Generator[Any, None, "Connection"]:
-        return self.connector().__await__()
+        return self._initialization().__await__()
 
     async def __aenter__(self) -> "Connection":
         return await self
@@ -405,8 +417,8 @@ def connect(
         *,
         timeout: float = 5.0,
         detect_types: int = 0,
-        isolation_level: IsolationLevel = "DEFERRED",
-        check_same_thread: bool = True,
+        isolation_level: IsolationLevel = 'DEFERRED',
+        check_same_thread: bool = False,
         factory: Type[Connection] = sqlite3.Connection,
         cached_statements: int = 128,
         uri: bool = False,
@@ -415,11 +427,11 @@ def connect(
 ) -> Connection:
     """Create and return a connection to the sqlite database."""
 
-    def connector() -> sqlite3.Connection:
+    def _connector() -> sqlite3.Connection:
         if isinstance(database, str):
             loc = database
         elif isinstance(database, bytes):
-            loc = database.decode("utf-8")
+            loc = database.decode('utf-8')
         else:
             loc = str(database)
 
@@ -434,5 +446,5 @@ def connect(
             uri=uri
         )
 
-    return Connection(connector, row_factory,
+    return Connection(_connector, row_factory,
                       isolation_level, iter_chunk_size)

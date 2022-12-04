@@ -1,4 +1,4 @@
-# aiolite
+# sqlite
 class Warning(Exception):
     pass
 
@@ -44,6 +44,6 @@ class TransactionError(Exception):
     pass
 
 
-# pools
+# pool
 class PoolError(Exception):
     pass
