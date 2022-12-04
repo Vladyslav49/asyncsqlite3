@@ -61,7 +61,7 @@ class Connection(Thread):
     def __init__(
             self,
             connector: Callable[[], sqlite3.Connection],
-            row_factory: bool,
+            default_factory: bool,
             isolation_level: IsolationLevel,
             iter_chunk_size: int
     ) -> None:
@@ -72,7 +72,7 @@ class Connection(Thread):
         self._conn: Optional[sqlite3.Connection] = None
         self._connector = connector
 
-        self._row_factory = row_factory
+        self._default_factory = default_factory
         self._isolation_level = isolation_level
         self._iter_chunk_size = iter_chunk_size
 
@@ -379,8 +379,8 @@ class Connection(Thread):
 
                 self._conn = await self._put(self._connector)
 
-                if self._row_factory is True:
-                    self._conn.row_factory = Record
+                if self._default_factory is True:
+                    self.row_factory = Record
             except BaseException:
                 self._event.set()
                 self._conn = None
@@ -422,7 +422,7 @@ def connect(
         factory: Type[Connection] = sqlite3.Connection,
         cached_statements: int = 128,
         uri: bool = False,
-        row_factory: bool = True,
+        default_factory: bool = True,
         iter_chunk_size: int = 64
 ) -> Connection:
     """Create and return a connection to the sqlite database."""
@@ -446,5 +446,5 @@ def connect(
             uri=uri
         )
 
-    return Connection(_connector, row_factory,
+    return Connection(_connector, default_factory,
                       isolation_level, iter_chunk_size)

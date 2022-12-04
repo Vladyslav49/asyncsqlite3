@@ -40,7 +40,7 @@ def connect(
         factory: Type[Connection] = sqlite3.Connection,
         cached_statements: int = 128,
         uri: bool = False,
-        row_factory: bool = True,
+        default_factory: bool = True,
         iter_chunk_size: int = 64
 ) -> ConnectionProxy:
     """Create and return a connection to the sqlite database."""
@@ -64,7 +64,7 @@ def connect(
             uri=uri
         )
 
-    return ConnectionProxy(_connector, row_factory,
+    return ConnectionProxy(_connector, default_factory,
                       isolation_level, iter_chunk_size)
 
 
@@ -112,7 +112,7 @@ class Pool:
     """
 
     __slots__ = (
-        '_database', '_min_size', '_max_size', '_row_factory',
+        '_database', '_min_size', '_max_size', '_default_factory',
         '_iter_chunk_size', '_connect_kwargs', '_initialized',
         '_initializing', '_all_connections', '_pool', '_event'
     )
@@ -122,7 +122,7 @@ class Pool:
             database: Union[bytes, str, Path],
             min_size: int,
             max_size: int,
-            row_factory: bool,
+            default_factory: bool,
             iter_chunk_size: int,
             **kwargs: Any
     ) -> None:
@@ -140,7 +140,7 @@ class Pool:
         self._database = database
         self._min_size = min_size
         self._max_size = max_size
-        self._row_factory = row_factory
+        self._default_factory = default_factory
         self._iter_chunk_size = iter_chunk_size
         self._connect_kwargs = kwargs
         self._initialized = False
@@ -153,7 +153,7 @@ class Pool:
         conn = connect(
             self._database,
             **self._connect_kwargs,
-            row_factory=self._row_factory,
+            default_factory=self._default_factory,
             iter_chunk_size=self._iter_chunk_size
         )
         self._pool.put(conn)
@@ -311,7 +311,7 @@ def create_pool(
         *,
         min_size: int = 10,
         max_size: int = 10,
-        row_factory: bool = True,
+        default_factory: bool = True,
         iter_chunk_size: int = 64,
         **kwargs: Any
 ) -> Pool:
@@ -326,8 +326,8 @@ def create_pool(
     :param max_size:
         Max number of connections in the pool.
 
-    :param row_factory:
+    :param default_factory:
         aiolite.Record factory to all connections of the pool.
     """
-    return Pool(database, min_size, max_size, row_factory,
+    return Pool(database, min_size, max_size, default_factory,
                 iter_chunk_size, **kwargs)
