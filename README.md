@@ -41,7 +41,7 @@ async with aiolite.create_pool(..., min_size=1, max_size=2) as pool:
 
 ### Installation
 
-aiolite is compatible with Python 3.6 and newer. Use pip to install:
+aiolite is compatible with Python 3.7 and newer. Use pip to install:
 
 `$ pip install aiolite`
 
