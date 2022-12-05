@@ -2,7 +2,6 @@ import asyncio
 import sqlite3
 
 from queue import Queue, Empty
-from threading import Event
 from types import TracebackType
 from typing import (
     Union,
@@ -114,7 +113,7 @@ class Pool:
     __slots__ = (
         '_database', '_min_size', '_max_size', '_default_factory',
         '_iter_chunk_size', '_connect_kwargs', '_initialized',
-        '_initializing', '_all_connections', '_pool', '_event'
+        '_initializing', '_all_connections', '_pool', '_end'
     )
 
     def __init__(
@@ -147,7 +146,7 @@ class Pool:
         self._initializing = False
         self._all_connections = []
         self._pool = Queue(maxsize=self.get_max_size())
-        self._event = Event()
+        self._end = False
 
     def _create_new_connection(self) -> ConnectionProxy:
         conn = connect(
@@ -217,7 +216,7 @@ class Pool:
         try:
             await asyncio.gather(*[conn.close() for conn in self._all_connections])
         finally:
-            self._event.set()
+            self._end = True
             self._all_connections.clear()
 
     async def execute(self, sql: str, parameters: Optional[Iterable[Any]] = None, *, timeout: Optional[float] = None) -> Cursor:
@@ -260,7 +259,7 @@ class Pool:
         return self._pool.qsize()
 
     def is_closed(self) -> bool:
-        return not self._all_connections and self._event.is_set()
+        return not self._all_connections and self._end
 
     async def _initialization(self) -> Optional["Pool"]:
         """Connect to the sqlite database and put connection in pool."""

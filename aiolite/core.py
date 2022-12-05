@@ -17,7 +17,7 @@ from typing import (
     Generator
 )
 from warnings import warn
-from threading import Thread, Event
+from threading import Thread
 from queue import Queue, Empty
 
 import async_timeout
@@ -77,7 +77,7 @@ class Connection(Thread):
         self._iter_chunk_size = iter_chunk_size
 
         self._queue = Queue()
-        self._event = Event()
+        self._end = False
 
     def run(self) -> None:
         """Execute function calls on a separate thread."""
@@ -229,7 +229,7 @@ class Connection(Thread):
             try:
                 await self._put(self._conn.close)
             finally:
-                self._event.set()
+                self._end = True
                 self._conn = None
 
     async def interrupt(self) -> None:
@@ -333,7 +333,7 @@ class Connection(Thread):
         return Transaction(self, isolation_level, timeout)
 
     def is_closed(self) -> bool:
-        return self._event.is_set() and self._conn is None
+        return self._end and self._conn is None
 
     @property
     def iter_chunk_size(self) -> int:
@@ -382,7 +382,7 @@ class Connection(Thread):
                 if self._default_factory is True:
                     self.row_factory = Record
             except BaseException:
-                self._event.set()
+                self._ = True
                 self._conn = None
                 raise
 
