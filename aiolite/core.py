@@ -382,7 +382,7 @@ class Connection(Thread):
                 if self._default_factory is True:
                     self.row_factory = Record
             except BaseException:
-                self._ = True
+                self._end = True
                 self._conn = None
                 raise
 
