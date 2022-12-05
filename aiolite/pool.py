@@ -1,7 +1,6 @@
 import asyncio
 import sqlite3
 
-from queue import Queue, Empty
 from types import TracebackType
 from typing import (
     Union,
@@ -12,6 +11,8 @@ from typing import (
     Iterable
 )
 from pathlib import Path
+
+import async_timeout
 
 from .core import Connection
 from .cursor import Cursor
@@ -113,7 +114,7 @@ class Pool:
     __slots__ = (
         '_database', '_min_size', '_max_size', '_default_factory',
         '_iter_chunk_size', '_connect_kwargs', '_initialized',
-        '_initializing', '_all_connections', '_pool', '_end'
+        '_initializing', '_all_connections', '_queue', '_end'
     )
 
     def __init__(
@@ -145,7 +146,7 @@ class Pool:
         self._initialized = False
         self._initializing = False
         self._all_connections = []
-        self._pool = Queue(maxsize=self.get_max_size())
+        self._queue = asyncio.Queue(maxsize=self.get_max_size())
         self._end = False
 
     def _create_new_connection(self) -> ConnectionProxy:
@@ -155,7 +156,7 @@ class Pool:
             default_factory=self._default_factory,
             iter_chunk_size=self._iter_chunk_size
         )
-        self._pool.put(conn)
+        self._queue.put_nowait(conn)
 
         self._all_connections.append(conn)
 
@@ -169,8 +170,9 @@ class Pool:
             await self._create_new_connection()
 
         try:
-            conn = self._pool.get(timeout=timeout)
-        except Empty:
+            async with async_timeout.timeout(timeout):
+                conn = await self._queue.get()
+        except asyncio.TimeoutError:
             raise PoolError('There are no free connections in the pool.') from None
         else:
             if conn.is_closed():
@@ -188,8 +190,8 @@ class Pool:
         if self.is_closed():
             raise PoolError('Pool is closed.')
         if conn not in self._all_connections:
-            raise PoolError('Connection not found.')
-        if conn in self._pool.queue:
+            raise PoolError('Connection not found in the pool.')
+        if conn in self._queue._queue:
             raise PoolError('The connection is already in the pool.')
         if conn._in_use is None:
             raise PoolError('The connection is not currently used by the pool.')
@@ -198,7 +200,7 @@ class Pool:
             conn._in_use.set_result(None)
         conn._in_use = None
 
-        self._pool.put(conn)
+        self._queue.put_nowait(conn)
 
     async def close(self) -> None:
         """Attempt to gracefully close all connections in the pool."""
@@ -256,7 +258,7 @@ class Pool:
 
     def get_size(self) -> int:
         """Return the current number of idle connections in this pool."""
-        return self._pool.qsize()
+        return self._queue.qsize()
 
     def is_closed(self) -> bool:
         return not self._all_connections and self._end
