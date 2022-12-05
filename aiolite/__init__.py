@@ -28,6 +28,13 @@ from .exceptions import (
     PoolError
 )
 
+try:
+    import uvloop
+except ImportError:
+    pass
+else:
+    uvloop.install()
+
 __author__ = 'Vladyslav49'
 __license__ = 'MIT'
 
