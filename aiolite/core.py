@@ -63,7 +63,7 @@ class Connection(Thread):
             connector: Callable[[], sqlite3.Connection],
             default_factory: bool,
             isolation_level: IsolationLevel,
-            iter_chunk_size: int
+            prefetch: int
     ) -> None:
         self._name = f'aiolite-{_new_connection()}'
 
@@ -74,7 +74,7 @@ class Connection(Thread):
 
         self._default_factory = default_factory
         self._isolation_level = isolation_level
-        self._iter_chunk_size = iter_chunk_size
+        self._prefetch = prefetch
 
         self._queue = Queue()
         self._end = False
@@ -140,9 +140,9 @@ class Connection(Thread):
         return result
 
     @contextmanager
-    async def cursor(self) -> Cursor:
+    async def cursor(self, prefetch: Optional[int] = None) -> Cursor:
         """Create an aiolite cursor wrapping a sqlite3 cursor object."""
-        return Cursor(self, await self._put(self._conn.cursor))
+        return Cursor(self, await self._put(self._conn.cursor), prefetch)
 
     @contextmanager
     async def execute(
@@ -336,8 +336,12 @@ class Connection(Thread):
         return self._end and self._conn is None
 
     @property
-    def iter_chunk_size(self) -> int:
-        return self._iter_chunk_size
+    def prefetch(self) -> int:
+        return self._prefetch
+
+    @prefetch.setter
+    def prefetch(self, value: int) -> None:
+        self._prefetch = value
 
     @property
     def in_transaction(self) -> bool:
@@ -423,7 +427,7 @@ def connect(
         cached_statements: int = 128,
         uri: bool = False,
         default_factory: bool = True,
-        iter_chunk_size: int = 64
+        prefetch: int = 64
 ) -> Connection:
     """Create and return a connection to the sqlite database."""
 
@@ -447,4 +451,4 @@ def connect(
         )
 
     return Connection(_connector, default_factory,
-                      isolation_level, iter_chunk_size)
+                      isolation_level, prefetch)

@@ -18,10 +18,18 @@ from .factory import Record
 
 class Cursor:
 
-    __slots__ = ('_iter_chunk_size', '_conn', '_cursor', '_closed')
+    __slots__ = ('_prefetch', '_conn', '_cursor', '_closed')
 
-    def __init__(self, conn: "Connection", cursor: sqlite3.Cursor) -> None:
-        self._iter_chunk_size = conn._iter_chunk_size
+    def __init__(
+            self,
+            conn: "Connection",
+            cursor: sqlite3.Cursor,
+            prefetch: Optional[int] = None
+    ) -> None:
+        if prefetch is None:
+            self._prefetch = conn.prefetch
+        else:
+            self._prefetch = prefetch
         self._conn = conn
         self._cursor = cursor
         self._closed = False
@@ -29,7 +37,7 @@ class Cursor:
     async def __aiter__(self) -> AsyncIterator[Record]:
         """Async iterator."""
         while True:
-            rows = await self.fetchmany(self._iter_chunk_size)
+            rows = await self.fetchmany(self._prefetch)
             if not rows:
                 return
             for row in rows:
@@ -92,6 +100,14 @@ class Cursor:
         """Close the cursor."""
         await self._conn._put(self._cursor.close)
         self._closed = True
+
+    @property
+    def prefetch(self) -> int:
+        return self._prefetch
+
+    @prefetch.setter
+    def prefetch(self, value: int) -> None:
+        self._prefetch = value
 
     @property
     def rowcount(self) -> int:

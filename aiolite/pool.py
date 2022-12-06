@@ -41,7 +41,7 @@ def connect(
         cached_statements: int = 128,
         uri: bool = False,
         default_factory: bool = True,
-        iter_chunk_size: int = 64
+        prefetch: int = 64
 ) -> ConnectionProxy:
     """Create and return a connection to the sqlite database."""
 
@@ -65,7 +65,7 @@ def connect(
         )
 
     return ConnectionProxy(_connector, default_factory,
-                      isolation_level, iter_chunk_size)
+                      isolation_level, prefetch)
 
 
 class PoolAcquireContext:
@@ -113,7 +113,7 @@ class Pool:
 
     __slots__ = (
         '_database', '_min_size', '_max_size', '_default_factory',
-        '_iter_chunk_size', '_connect_kwargs', '_initialized',
+        '_prefetch', '_connect_kwargs', '_initialized',
         '_initializing', '_all_connections', '_queue', '_end'
     )
 
@@ -123,7 +123,7 @@ class Pool:
             min_size: int,
             max_size: int,
             default_factory: bool,
-            iter_chunk_size: int,
+            prefetch: int,
             **kwargs: Any
     ) -> None:
 
@@ -141,7 +141,7 @@ class Pool:
         self._min_size = min_size
         self._max_size = max_size
         self._default_factory = default_factory
-        self._iter_chunk_size = iter_chunk_size
+        self._prefetch = prefetch
         self._connect_kwargs = kwargs
         self._initialized = False
         self._initializing = False
@@ -154,7 +154,7 @@ class Pool:
             self._database,
             **self._connect_kwargs,
             default_factory=self._default_factory,
-            iter_chunk_size=self._iter_chunk_size
+            prefetch=self._prefetch
         )
         self._queue.put_nowait(conn)
 
@@ -313,7 +313,7 @@ def create_pool(
         min_size: int = 10,
         max_size: int = 10,
         default_factory: bool = True,
-        iter_chunk_size: int = 64,
+        prefetch: int = 64,
         **kwargs: Any
 ) -> Pool:
     """Create and return a connection pool.
@@ -331,4 +331,4 @@ def create_pool(
         aiolite.Record factory to all connections of the pool.
     """
     return Pool(database, min_size, max_size, default_factory,
-                iter_chunk_size, **kwargs)
+                prefetch, **kwargs)
