@@ -110,9 +110,10 @@ class Pool:
     """
 
     __slots__ = (
-        '_database', '_min_size', '_max_size', '_prefetch',
-        '_connect_kwargs', '_initialized', '_initializing',
-        '_all_connections', '_queue', '_end'
+        '_database', '_min_size', '_max_size',
+        '_connect_kwargs', '_initialized',
+        '_initializing', '_all_connections',
+        '_queue', '_end'
     )
 
     def __init__(
@@ -120,7 +121,6 @@ class Pool:
             database: Union[bytes, str, Path],
             min_size: int,
             max_size: int,
-            prefetch: int,
             **kwargs: Any
     ) -> None:
 
@@ -137,7 +137,6 @@ class Pool:
         self._database = database
         self._min_size = min_size
         self._max_size = max_size
-        self._prefetch = prefetch
         self._connect_kwargs = kwargs
         self._initialized = False
         self._initializing = False
@@ -148,8 +147,7 @@ class Pool:
     def _create_new_connection(self) -> ConnectionProxy:
         conn = connect(
             self._database,
-            **self._connect_kwargs,
-            prefetch=self._prefetch
+            **self._connect_kwargs
         )
         self._queue.put_nowait(conn)
 
@@ -324,9 +322,7 @@ def create_pool(
         *,
         min_size: int = 10,
         max_size: int = 10,
-        prefetch: int = 64,
         **kwargs: Any
 ) -> Pool:
     """Create and return a connection pool."""
-    return Pool(database, min_size, max_size,
-                prefetch, **kwargs)
+    return Pool(database, min_size, max_size, **kwargs)
