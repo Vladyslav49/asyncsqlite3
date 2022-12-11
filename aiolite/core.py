@@ -61,7 +61,6 @@ class Connection(Thread):
     def __init__(
             self,
             connector: Callable[[], sqlite3.Connection],
-            default_factory: bool,
             isolation_level: IsolationLevel,
             prefetch: int
     ) -> None:
@@ -72,7 +71,6 @@ class Connection(Thread):
         self._conn: Optional[sqlite3.Connection] = None
         self._connector = connector
 
-        self._default_factory = default_factory
         self._isolation_level = isolation_level
         self._prefetch = prefetch
 
@@ -140,9 +138,16 @@ class Connection(Thread):
         return result
 
     @contextmanager
-    async def cursor(self, prefetch: Optional[int] = None) -> Cursor:
+    async def cursor(
+            self,
+            *,
+            row_factory: Optional[Type] = Record,
+            prefetch: Optional[int] = None
+    ) -> Cursor:
         """Create an aiolite cursor wrapping a sqlite3 cursor object."""
-        return Cursor(self, await self._put(self._conn.cursor), prefetch)
+        cursor = Cursor(self, await self._put(self._conn.cursor), prefetch)
+        cursor.row_factory = row_factory
+        return cursor
 
     @contextmanager
     async def execute(
@@ -186,22 +191,26 @@ class Connection(Thread):
             sql: str,
             parameters: Optional[Iterable[Any]] = None,
             *,
-            timeout: Optional[float] = None
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
     ) -> Optional[Record]:
         """Shortcut version of aiolite.Cursor.fetchone."""
         async with self.execute(sql, parameters, timeout=timeout) as cur:
+            cur.row_factory = row_factory
             return await cur.fetchone()
 
     async def fetchmany(
             self,
             sql: str,
             parameters: Optional[Iterable[Any]] = None,
-            size: Optional[int] = None,
             *,
-            timeout: Optional[float] = None
+            size: Optional[int] = None,
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
     ) -> Iterable[Record]:
         """Shortcut version of aiolite.Cursor.fetchmany."""
         async with self.execute(sql, parameters, timeout=timeout) as cur:
+            cur.row_factory = row_factory
             return await cur.fetchmany(size)
 
     async def fetchall(
@@ -209,10 +218,12 @@ class Connection(Thread):
             sql: str,
             parameters: Optional[Iterable[Any]] = None,
             *,
-            timeout: Optional[float] = None
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
     ) -> Iterable[Record]:
         """Shortcut version of aiolite.Cursor.fetchall."""
         async with self.execute(sql, parameters, timeout=timeout) as cur:
+            cur.row_factory = row_factory
             return await cur.fetchall()
 
     async def commit(self) -> None:
@@ -382,9 +393,6 @@ class Connection(Thread):
                 self.start()
 
                 self._conn = await self._put(self._connector)
-
-                if self._default_factory is True:
-                    self.row_factory = Record
             except BaseException:
                 self._end = True
                 self._conn = None
@@ -426,7 +434,6 @@ def connect(
         factory: Type[Connection] = sqlite3.Connection,
         cached_statements: int = 128,
         uri: bool = False,
-        default_factory: bool = True,
         prefetch: int = 64
 ) -> Connection:
     """Create and return a connection to the sqlite database."""
@@ -450,5 +457,4 @@ def connect(
             uri=uri
         )
 
-    return Connection(_connector, default_factory,
-                      isolation_level, prefetch)
+    return Connection(_connector, isolation_level, prefetch)

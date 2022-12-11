@@ -77,23 +77,37 @@ class Cursor:
         await self._conn._put(self._cursor.executescript, sql_script, timeout=timeout)
         return self
 
-    async def fetchone(self, *, timeout: Optional[float] = None) -> Optional[Record]:
+    async def fetchone(
+            self,
+            *,
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
+    ) -> Optional[Record]:
         """Fetch a single row."""
+        self.row_factory = row_factory
         return await self._conn._put(self._cursor.fetchone, timeout=timeout)
 
     async def fetchmany(
             self,
             size: Optional[int] = None,
             *,
-            timeout: Optional[float] = None
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
     ) -> Iterable[Record]:
         """Fetch up to `cursor.arraysize` number of rows."""
         if size is None:
             size = self.arraysize
+        self.row_factory = row_factory
         return await self._conn._put(self._cursor.fetchmany, size, timeout=timeout)
 
-    async def fetchall(self, *, timeout: Optional[float] = None) -> Iterable[Record]:
+    async def fetchall(
+            self,
+            *,
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
+    ) -> Iterable[Record]:
         """Fetch all remaining rows."""
+        self.row_factory = row_factory
         return await self._conn._put(self._cursor.fetchall, timeout=timeout)
 
     async def close(self) -> None:
