@@ -51,8 +51,6 @@ How you see this module very look like [aiosqlite](https://github.com/omnilib/ai
 
 Implicit transactions are turned off, but you can use Connection method `transaction`.
 
-You can off Record factory: aiolite.connect(..., default_factory=False) or aiolite.create_pool(..., default_factory=False) -> records will be returned as in the sqlite3 module.
-
 ### License
 
 MIT
