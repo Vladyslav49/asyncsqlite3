@@ -57,16 +57,21 @@ def _new_connection() -> int:
     return _count
 
 
-class Connection(Thread):
+class Connection:
+
+    __slots__ = (
+        '_name', '_conn', '_connector',
+        '_isolation_level', '_prefetch',
+        '_queue', '_end'
+    )
+
     def __init__(
             self,
             connector: Callable[[], sqlite3.Connection],
             isolation_level: IsolationLevel,
             prefetch: int
     ) -> None:
-        self._name = f'aiolite-{_new_connection()}'
-
-        super().__init__(name=self._name, daemon=True)
+        self._name = f'aiolite-connection-{_new_connection()}'
 
         self._conn: Optional[sqlite3.Connection] = None
         self._connector = connector
@@ -77,7 +82,7 @@ class Connection(Thread):
         self._queue = Queue()
         self._end = False
 
-    def run(self) -> None:
+    def _handler(self) -> None:
         """Execute function calls on a separate thread."""
         while not self.is_closed():
             # Continues running until all queue items are processed,
@@ -390,7 +395,11 @@ class Connection(Thread):
         """Connect to the sqlite database."""
         if self._conn is None:
             try:
-                self.start()
+                Thread(
+                    target=self._handler,
+                    name=self._name,
+                    daemon=True
+                ).start()
 
                 self._conn = await self._put(self._connector)
             except BaseException:

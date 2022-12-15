@@ -21,6 +21,9 @@ from .transaction import IsolationLevel
 
 
 class ConnectionProxy(Connection):
+
+    __slots__ = '_in_use'
+
     def __init__(self, *args: Any) -> None:
         super().__init__(*args)
         self._in_use: Optional[asyncio.Future] = None

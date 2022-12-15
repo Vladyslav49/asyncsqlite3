@@ -75,8 +75,8 @@ class Transaction:
                 'cannot start; the transaction is already started')
 
         try:
-            cursor = await self._conn.execute(f'BEGIN {self._isolation_level} TRANSACTION;')
-            await cursor.close()
+            async with self._conn.cursor() as cursor:
+                await cursor.execute(f'BEGIN {self._isolation_level} TRANSACTION;')
         except BaseException:
             self._state = TransactionState.FAILED
             raise

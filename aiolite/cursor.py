@@ -18,7 +18,7 @@ from .factory import Record
 
 class Cursor:
 
-    __slots__ = ('_prefetch', '_conn', '_cursor', '_closed')
+    __slots__ = ('_prefetch', '_conn', '_cursor', '_closed', '_put')
 
     def __init__(
             self,
@@ -33,6 +33,7 @@ class Cursor:
         self._conn = conn
         self._cursor = cursor
         self._closed = False
+        self._put = self._conn._put
 
     async def __aiter__(self) -> AsyncIterator[Record]:
         """Async iterator."""
@@ -53,7 +54,7 @@ class Cursor:
         """Execute the given query."""
         if parameters is None:
             parameters = []
-        await self._conn._put(self._cursor.execute, sql, parameters, timeout=timeout)
+        await self._put(self._cursor.execute, sql, parameters, timeout=timeout)
         return self
 
     async def executemany(
@@ -64,7 +65,7 @@ class Cursor:
             timeout: Optional[float] = None
     ) -> "Cursor":
         """Execute the given multiquery."""
-        await self._conn._put(self._cursor.executemany, sql, parameters, timeout=timeout)
+        await self._put(self._cursor.executemany, sql, parameters, timeout=timeout)
         return self
 
     async def executescript(
@@ -74,7 +75,7 @@ class Cursor:
             timeout: Optional[float] = None
     ) -> "Cursor":
         """Execute a user script."""
-        await self._conn._put(self._cursor.executescript, sql_script, timeout=timeout)
+        await self._put(self._cursor.executescript, sql_script, timeout=timeout)
         return self
 
     async def fetchone(
@@ -85,7 +86,7 @@ class Cursor:
     ) -> Optional[Record]:
         """Fetch a single row."""
         self.row_factory = row_factory
-        return await self._conn._put(self._cursor.fetchone, timeout=timeout)
+        return await self._put(self._cursor.fetchone, timeout=timeout)
 
     async def fetchmany(
             self,
@@ -98,7 +99,7 @@ class Cursor:
         if size is None:
             size = self.arraysize
         self.row_factory = row_factory
-        return await self._conn._put(self._cursor.fetchmany, size, timeout=timeout)
+        return await self._put(self._cursor.fetchmany, size, timeout=timeout)
 
     async def fetchall(
             self,
@@ -108,11 +109,11 @@ class Cursor:
     ) -> Iterable[Record]:
         """Fetch all remaining rows."""
         self.row_factory = row_factory
-        return await self._conn._put(self._cursor.fetchall, timeout=timeout)
+        return await self._put(self._cursor.fetchall, timeout=timeout)
 
     async def close(self) -> None:
         """Close the cursor."""
-        await self._conn._put(self._cursor.close)
+        await self._put(self._cursor.close)
         self._closed = True
 
     @property
