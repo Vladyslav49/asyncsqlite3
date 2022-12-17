@@ -18,6 +18,7 @@ from .core import Connection
 from .cursor import Cursor
 from .exceptions import PoolError
 from .transaction import IsolationLevel
+from .factory import Record
 
 
 class ConnectionProxy(Connection):
@@ -94,7 +95,7 @@ class PoolAcquireContext:
         self._conn = None
         self._pool.release(conn)
 
-    def __await__(self):
+    def __await__(self) -> ConnectionProxy:
         if self._conn is not None:
             raise PoolError('A connection is already acquired.')
         self._conn = yield from self._pool._acquire(timeout=self._timeout).__await__()
@@ -260,6 +261,55 @@ class Pool:
             async with conn.transaction():
                 async with conn.executescript(sql_script, timeout=timeout) as cursor:
                     return cursor
+
+    async def fetchone(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
+    ) -> Optional[Record]:
+        """Pool performs this operation using one of its connections.
+        Other than that, it behaves identically to Connection.fetchone().
+        """
+        async with self.acquire() as conn:
+            async with conn.execute(sql, parameters, timeout=timeout) as cur:
+                cur.row_factory = row_factory
+                return await cur.fetchone()
+
+    async def fetchmany(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            size: Optional[int] = None,
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
+    ) -> Iterable[Record]:
+        """Pool performs this operation using one of its connections.
+        Other than that, it behaves identically to Connection.fetchmany().
+        """
+        async with self.acquire() as conn:
+            async with conn.execute(sql, parameters, timeout=timeout) as cur:
+                cur.row_factory = row_factory
+                return await cur.fetchmany(size)
+
+    async def fetchall(
+            self,
+            sql: str,
+            parameters: Optional[Iterable[Any]] = None,
+            *,
+            timeout: Optional[float] = None,
+            row_factory: Optional[Type] = Record
+    ) -> Iterable[Record]:
+        """Pool performs this operation using one of its connections.
+        Other than that, it behaves identically to Connection.fetchall().
+        """
+        async with self.acquire() as conn:
+            async with conn.execute(sql, parameters, timeout=timeout) as cur:
+                cur.row_factory = row_factory
+                return await cur.fetchall()
 
     def get_max_size(self) -> int:
         """Return the maximum allowed number of connections in this pool."""

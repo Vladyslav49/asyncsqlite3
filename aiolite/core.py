@@ -44,13 +44,6 @@ logger = getLogger(__name__)
 _count = 0
 
 
-def get_loop(future: asyncio.Future) -> asyncio.AbstractEventLoop:
-    if sys.version_info >= (3, 7):
-        return future.get_loop()
-    else:
-        return future._loop
-
-
 def _new_connection() -> int:
     global _count
     _count += 1
@@ -120,11 +113,11 @@ class Connection:
 
                     logger.debug('operation %s completed', function)
 
-                    get_loop(future).call_soon_threadsafe(future.set_result, result)
+                    future.get_loop().call_soon_threadsafe(future.set_result, result)
                 except BaseException as error:
                     logger.debug('returning exception: %s', error)
 
-                    get_loop(future).call_soon_threadsafe(future.set_exception, error)
+                    future.get_loop().call_soon_threadsafe(future.set_exception, error)
 
     async def _put(self, func, *args, timeout=None, **kwargs):
         """Queue a function with the given arguments for execution."""
