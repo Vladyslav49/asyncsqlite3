@@ -18,7 +18,7 @@ from typing import (
 )
 from warnings import warn
 from threading import Thread
-from queue import Queue, Empty
+from queue import SimpleQueue, Empty
 
 import async_timeout
 
@@ -72,7 +72,7 @@ class Connection:
         self._isolation_level = isolation_level
         self._prefetch = prefetch
 
-        self._queue = Queue()
+        self._queue = SimpleQueue()
         self._end = False
 
     def _handler(self) -> None:
