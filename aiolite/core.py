@@ -315,9 +315,6 @@ class Connection:
 
         Takes either a standard sqlite3 or aiolite Connection object as the target.
         """
-        if sys.version_info < (3, 7):
-            raise NotSupportedError('backup() method is only available on Python 3.7+')
-
         if isinstance(target, Connection):
             target = target._conn
 

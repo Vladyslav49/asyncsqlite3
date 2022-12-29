@@ -167,7 +167,10 @@ class Pool:
             await self._create_new_connection()
 
         try:
-            async with async_timeout.timeout(timeout):
+            if timeout is not None:
+                async with async_timeout.timeout(timeout):
+                    conn = await self._queue.get()
+            else:
                 conn = await self._queue.get()
         except asyncio.TimeoutError:
             raise PoolError('There are no free connections in the pool.') from None

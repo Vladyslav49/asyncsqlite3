@@ -11,6 +11,7 @@ class Record(Row):
 
     def __repr__(self) -> str:
         result = f'<Record'
-        for key, value in dict(self).items():
-            result += f' {key}={value!r}'
+        for key in self.keys():
+            result += f' {key}={self[key]!r}'
         return f'{result}>'
+

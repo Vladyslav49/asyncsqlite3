@@ -47,9 +47,12 @@ class Transaction:
         if isolation_level is None:
             isolation_level = 'DEFERRED'
 
+        if timeout is not None:
+            timeout = async_timeout.timeout(timeout)
+
         self._conn = conn
         self._isolation_level = isolation_level
-        self._timeout_handler = async_timeout.timeout(timeout)
+        self._timeout_handler = timeout
         self._managed = False
         self._state = TransactionState.NEW
 
@@ -68,7 +71,7 @@ class Transaction:
                 raise TransactionError(
                     f'cannot {operation}; the transaction is in error state')
 
-    async def start(self) -> None:
+    async def _start(self) -> None:
         """Enter the transaction or savepoint block."""
         if self._state is TransactionState.STARTED:
             raise TransactionError(
@@ -107,6 +110,9 @@ class Transaction:
         else:
             self._state = TransactionState.ROLLEDBACK
 
+    def _timeout_available(self) -> bool:
+        return isinstance(self._timeout_handler, async_timeout.Timeout)
+
     @property
     def state(self) -> str:
         return self._state.name
@@ -121,9 +127,10 @@ class Transaction:
                 'cannot enter context: already in an `async with` block')
         else:
             self._managed = True
-        await self.start()
+        await self._start()
 
-        self._timeout_handler._do_enter()
+        if self._timeout_available():
+            self._timeout_handler._do_enter()
 
         return self
 
@@ -140,7 +147,8 @@ class Transaction:
                 await self._commit()
         finally:
             self._managed = False
-            self._timeout_handler._do_exit(exc_type)
+            if self._timeout_available():
+                self._timeout_handler._do_exit(exc_type)
 
     def __repr__(self) -> str:
         return f'<Transaction at {id(self):#x} {self._format()}>'
@@ -149,7 +157,4 @@ class Transaction:
         return f'<Transaction {self._format()}>'
 
     def _format(self) -> str:
-        text = f'state={self._state.name!r}'
-        if self._isolation_level is not None:
-            text += f' isolation_level={self._isolation_level!r}'
-        return text
+        return f'state={self._state.name!r} isolation_level={self._isolation_level!r}'
