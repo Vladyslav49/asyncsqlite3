@@ -1,20 +1,19 @@
 import asyncio
 import sqlite3
 
+from itertools import repeat
 from types import TracebackType
 from typing import (
-    Union,
     Optional,
     Type,
     Generator,
     Any,
     Iterable
 )
-from pathlib import Path
 
 import async_timeout
 
-from .core import Connection
+from .core import Connection, DatabasePath
 from .cursor import Cursor
 from .exceptions import PoolError
 from .transaction import IsolationLevel
@@ -35,7 +34,7 @@ class ConnectionProxy(Connection):
 
 
 def connect(
-        database: Union[bytes, str, Path],
+        database: DatabasePath,
         *,
         timeout: float = 5.0,
         detect_types: int = 0,
@@ -115,16 +114,17 @@ class Pool:
 
     __slots__ = (
         '_database', '_min_size', '_max_size',
-        '_connect_kwargs', '_initialized',
-        '_initializing', '_all_connections',
-        '_queue', '_end'
+        '_close_timeout', '_connect_kwargs',
+        '_initialized', '_initializing',
+        '_all_connections', '_queue', '_end'
     )
 
     def __init__(
             self,
-            database: Union[bytes, str, Path],
+            database: DatabasePath,
             min_size: int,
             max_size: int,
+            close_timeout: Optional[float],
             **kwargs: Any
     ) -> None:
 
@@ -141,6 +141,7 @@ class Pool:
         self._database = database
         self._min_size = min_size
         self._max_size = max_size
+        self._close_timeout = close_timeout
         self._connect_kwargs = kwargs
         self._initialized = False
         self._initializing = False
@@ -207,7 +208,11 @@ class Pool:
         if self.is_closed():
             raise PoolError('Pool is closed.')
 
-        await asyncio.gather(*[conn._wait_until_released() for conn in self._all_connections])
+        if self._close_timeout is not None:
+            async with async_timeout.timeout(self._close_timeout):
+                await self._wait_all_connections()
+        else:
+            await self._wait_all_connections()
         await self.terminate()
 
     async def terminate(self) -> None:
@@ -329,6 +334,9 @@ class Pool:
     def is_closed(self) -> bool:
         return not self._all_connections and self._end
 
+    async def _wait_all_connections(self) -> None:
+        await asyncio.gather(*[conn._wait_until_released() for conn in self._all_connections])
+
     async def _initialization(self) -> Optional["Pool"]:
         """Connect to the sqlite database and put connection in pool."""
         if self._initialized:
@@ -339,7 +347,7 @@ class Pool:
             raise PoolError('Pool is closed.')
         self._initializing = True
         try:
-            for _ in range(self.get_min_size()):
+            for _ in repeat(None, self.get_min_size()):
                 self._create_new_connection()
 
             await asyncio.gather(*self._all_connections)
@@ -356,7 +364,8 @@ class Pool:
         return f'<Pool {self._format()}>'
 
     def _format(self) -> str:
-        return f'size={self.get_size()} min_size={self.get_min_size()} max_size={self.get_max_size()} closed={self.is_closed()}'
+        return 'size={} min_size={} max_size={} closed={}'.format(
+            self.get_size(), self.get_min_size(), self.get_max_size(), self.is_closed())
 
     def __await__(self) -> Generator[Any, None, "Pool"]:
         return self._initialization().__await__()
@@ -374,11 +383,13 @@ class Pool:
 
 
 def create_pool(
-        database: Union[bytes, str, Path],
+        database: DatabasePath,
         *,
         min_size: int = 10,
         max_size: int = 10,
+        close_timeout: Optional[float] = None,
         **kwargs: Any
 ) -> Pool:
     """Create and return a connection pool."""
-    return Pool(database, min_size, max_size, **kwargs)
+    return Pool(database, min_size, max_size,
+                close_timeout, **kwargs)

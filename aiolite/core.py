@@ -39,7 +39,9 @@ from .exceptions import (
     ProgrammingError
 )
 
-logger = getLogger(__name__)
+DatabasePath = Union[bytes, str, Path]
+
+LOGGER = getLogger(__name__)
 
 _count = 0
 
@@ -86,7 +88,7 @@ class Connection:
                 pass
             else:
                 try:
-                    logger.debug('executing: %s', function)
+                    LOGGER.debug('executing: %s', function)
 
                     try:
                         result = function()
@@ -111,11 +113,11 @@ class Connection:
                     except sqlite3.Warning as error:
                         raise Warning(error) from None
 
-                    logger.debug('operation %s completed', function)
+                    LOGGER.debug('operation %s completed', function)
 
                     future.get_loop().call_soon_threadsafe(future.set_result, result)
                 except BaseException as error:
-                    logger.debug('returning exception: %s', error)
+                    LOGGER.debug('returning exception: %s', error)
 
                     future.get_loop().call_soon_threadsafe(future.set_exception, error)
 
@@ -424,7 +426,7 @@ class Connection:
 
 
 def connect(
-        database: Union[bytes, str, Path],
+        database: DatabasePath,
         *,
         timeout: float = 5.0,
         detect_types: int = 0,

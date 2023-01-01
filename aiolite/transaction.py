@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from .exceptions import TransactionError
 
-IsolationLevel = Optional[Literal["DEFERRED", "IMMEDIATE", "EXCLUSIVE"]]
+IsolationLevel = Optional[Literal['DEFERRED', 'IMMEDIATE', 'EXCLUSIVE']]
 
 
 class TransactionState(Enum):
