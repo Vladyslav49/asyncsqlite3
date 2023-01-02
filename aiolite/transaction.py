@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from .exceptions import TransactionError
 
-IsolationLevel = Optional[Literal['DEFERRED', 'IMMEDIATE', 'EXCLUSIVE']]
+IsolationLevel = Literal['DEFERRED', 'IMMEDIATE', 'EXCLUSIVE']
 
 
 class TransactionState(Enum):
@@ -43,9 +43,6 @@ class Transaction:
             isolation_level: IsolationLevel,
             timeout: Optional[float]
     ) -> None:
-
-        if isolation_level is None:
-            isolation_level = 'DEFERRED'
 
         if timeout is not None:
             timeout = async_timeout.timeout(timeout)

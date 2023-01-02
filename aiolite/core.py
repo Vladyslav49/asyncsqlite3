@@ -331,7 +331,7 @@ class Connection:
 
     def transaction(
             self,
-            isolation_level: IsolationLevel = None,
+            isolation_level: Optional[IsolationLevel] = None,
             *,
             timeout: Optional[float] = None
     ) -> Transaction:
