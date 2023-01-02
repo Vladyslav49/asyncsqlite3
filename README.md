@@ -45,6 +45,10 @@ aiolite is compatible with Python 3.7 and newer. Use pip to install:
 
 `$ pip install aiolite`
 
+You can speed up aiolite as follows:
+
+`$ pip install aiolite[uvloop]`
+
 ### Details
 
 How you see this module very look like [aiosqlite](https://github.com/omnilib/aiosqlite) and [asyncpg](https://github.com/MagicStack/asyncpg).
