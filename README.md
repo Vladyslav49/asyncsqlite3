@@ -1,9 +1,9 @@
-### aiolite - asynchronous wrapper to work with sqlite database.
+### asyncsqlite3 - asynchronous driver for sqlite3.
 
 Asynchronous interface with context managers for sqlite database:
 
 ```python
-async with aiolite.connect(...) as conn:
+async with asyncsqlite3.connect(...) as conn:
     async with conn.execute("INSERT INTO some_table ..."):
         await conn.commit()
 
@@ -14,7 +14,7 @@ async with aiolite.connect(...) as conn:
 And without context managers:
 
 ```python
-conn = await aiolite.connect(...)
+conn = await asyncsqlite3.connect(...)
 cursor = await conn.execute("SELECT * FROM some_table")
 rows = await cursor.fetchall()
 await cursor.close()
@@ -24,7 +24,7 @@ await conn.close()
 Connection pool and transaction:
 
 ```python
-async with aiolite.create_pool(..., min_size=1, max_size=2) as pool:
+async with asyncsqlite3.create_pool(..., min_size=1, max_size=2) as pool:
     async with pool.acquire(timeout=1.5) as conn: # You can use a timeout when getting a connection from queue.
         async with conn.transaction():
             async with conn.execute("INSERT INTO some_table ..."):
@@ -41,13 +41,13 @@ async with aiolite.create_pool(..., min_size=1, max_size=2) as pool:
 
 ### Installation
 
-aiolite is compatible with Python 3.7 and newer. Use pip to install:
+asyncsqlite3 is compatible with Python 3.7 and newer. Use pip to install:
 
-`$ pip install aiolite`
+`$ pip install asyncsqlite3`
 
-You can speed up aiolite as follows:
+You can speed up asyncsqlite3 as follows:
 
-`$ pip install aiolite[uvloop]`
+`$ pip install asyncsqlite3[uvloop]`
 
 ### Details
 
