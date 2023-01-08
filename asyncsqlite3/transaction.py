@@ -2,7 +2,7 @@ import sys
 
 from enum import Enum
 from types import TracebackType
-from typing import Optional, Type, TYPE_CHECKING, NoReturn
+from typing import Optional, Type, TYPE_CHECKING
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -53,7 +53,7 @@ class Transaction:
         self._managed = False
         self._state = TransactionState.NEW
 
-    def _check_state(self, operation: str) -> Optional[NoReturn]:
+    def _check_state(self, operation: str) -> None:
         if self._state is not TransactionState.STARTED:
             if self._state is TransactionState.NEW:
                 raise TransactionError(
