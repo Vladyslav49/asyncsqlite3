@@ -146,7 +146,7 @@ class Pool:
         self._initialized = False
         self._initializing = False
         self._all_connections = []
-        self._queue = asyncio.Queue(maxsize=self.get_max_size())
+        self._queue = asyncio.LifoQueue(maxsize=self.get_max_size())
         self._end = False
 
     def _create_new_connection(self) -> ConnectionProxy:
