@@ -8,7 +8,8 @@ from typing import (
     Type,
     Generator,
     Any,
-    Iterable
+    Iterable,
+    Coroutine
 )
 
 import async_timeout
@@ -27,6 +28,14 @@ class ConnectionProxy(Connection):
     def __init__(self, *args: Any) -> None:
         super().__init__(*args)
         self._in_use: Optional[asyncio.Future] = None
+
+    def _acquire(self) -> None:
+        self._in_use = asyncio.get_running_loop().create_future()
+
+    def _release(self) -> None:
+        if not self._in_use.done():
+            self._in_use.set_result(None)
+        self._in_use = None
 
     async def _wait_until_released(self) -> None:
         if self._in_use is not None:
@@ -78,10 +87,21 @@ class PoolAcquireContext:
         self._timeout = timeout
         self._conn = None
 
-    async def __aenter__(self) -> ConnectionProxy:
+    def _acquired(self) -> None:
         if self._conn is not None:
             raise PoolError('A connection is already acquired.')
-        self._conn = await self._pool._acquire(timeout=self._timeout)
+
+    def _acquire(self) -> Coroutine[Any, Any, ConnectionProxy]:
+        return self._pool._acquire(timeout=self._timeout)
+
+    def _release(self) -> None:
+        conn = self._conn
+        self._conn = None
+        self._pool.release(conn)
+
+    async def __aenter__(self) -> ConnectionProxy:
+        self._acquired()
+        self._conn = await self._acquire()
         return self._conn
 
     async def __aexit__(
@@ -90,14 +110,11 @@ class PoolAcquireContext:
             exc_val: Optional[BaseException],
             exc_tb: Optional[TracebackType]
     ) -> None:
-        conn = self._conn
-        self._conn = None
-        self._pool.release(conn)
+        self._release()
 
     def __await__(self) -> ConnectionProxy:
-        if self._conn is not None:
-            raise PoolError('A connection is already acquired.')
-        self._conn = yield from self._pool._acquire(timeout=self._timeout).__await__()
+        self._acquired()
+        self._conn = yield from self._acquire().__await__()
         return self._conn
 
 
@@ -116,7 +133,7 @@ class Pool:
         '_database', '_min_size', '_max_size',
         '_close_timeout', '_connect_kwargs',
         '_initialized', '_initializing',
-        '_all_connections', '_queue', '_end'
+        '_all_connections', '_queue', '_closed'
     )
 
     def __init__(
@@ -147,17 +164,19 @@ class Pool:
         self._initializing = False
         self._all_connections = []
         self._queue = asyncio.LifoQueue(maxsize=self.get_max_size())
-        self._end = False
+        self._closed = False
 
     def _create_new_connection(self) -> ConnectionProxy:
-        conn = connect(
-            self._database,
-            **self._connect_kwargs
-        )
-        self._queue.put_nowait(conn)
+        conn = connect(self._database, **self._connect_kwargs)
 
         self._all_connections.append(conn)
 
+        return conn
+
+    async def _get_new_connection_if_current_closed(self, conn: ConnectionProxy) -> ConnectionProxy:
+        if conn.is_closed():
+            self._all_connections.remove(conn)
+            conn = await self._create_new_connection()
         return conn
 
     async def _acquire(self, *, timeout: Optional[float]) -> ConnectionProxy:
@@ -165,7 +184,9 @@ class Pool:
             raise PoolError('Pool is closed.')
 
         if len(self._all_connections) < self.get_max_size():
-            await self._create_new_connection()
+            conn = await self._create_new_connection()
+            conn._acquire()
+            return conn
 
         try:
             if timeout is not None:
@@ -176,10 +197,8 @@ class Pool:
         except asyncio.TimeoutError:
             raise PoolError('There are no free connections in the pool.') from None
         else:
-            if conn.is_closed():
-                self._all_connections.remove(conn)
-                return await self._acquire(timeout=timeout)
-            conn._in_use = asyncio.get_running_loop().create_future()
+            conn = await self._get_new_connection_if_current_closed(conn)
+            conn._acquire()
             return conn
 
     def acquire(self, *, timeout: Optional[float] = None) -> PoolAcquireContext:
@@ -197,9 +216,7 @@ class Pool:
         if conn._in_use is None:
             raise PoolError('The connection is not currently used by the pool.')
 
-        if not conn._in_use.done():
-            conn._in_use.set_result(None)
-        conn._in_use = None
+        conn._release()
 
         self._queue.put_nowait(conn)
 
@@ -227,7 +244,7 @@ class Pool:
         try:
             await asyncio.gather(*[conn.close() for conn in self._all_connections])
         finally:
-            self._end = True
+            self._closed = True
             self._all_connections.clear()
 
     async def execute(
@@ -324,7 +341,7 @@ class Pool:
         return self._queue.qsize()
 
     def is_closed(self) -> bool:
-        return not self._all_connections and self._end
+        return not self._all_connections and self._closed
 
     async def _wait_all_connections(self) -> None:
         await asyncio.gather(*[conn._wait_until_released() for conn in self._all_connections])
@@ -340,7 +357,7 @@ class Pool:
         self._initializing = True
         try:
             for _ in repeat(None, self.get_min_size()):
-                self._create_new_connection()
+                self._queue.put_nowait(self._create_new_connection())
 
             await asyncio.gather(*self._all_connections)
 

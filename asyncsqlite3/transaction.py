@@ -68,7 +68,7 @@ class Transaction:
                 raise TransactionError(
                     f'cannot {operation}; the transaction is in error state')
 
-    async def _start(self) -> None:
+    async def start(self) -> None:
         """Enter the transaction or savepoint block."""
         if self._state is TransactionState.STARTED:
             raise TransactionError(
@@ -83,7 +83,7 @@ class Transaction:
         else:
             self._state = TransactionState.STARTED
 
-    async def _commit(self) -> None:
+    async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
         self._check_state('commit')
 
@@ -95,7 +95,7 @@ class Transaction:
         else:
             self._state = TransactionState.COMMITTED
 
-    async def _rollback(self) -> None:
+    async def rollback(self) -> None:
         """Exit the transaction or savepoint block and rollback changes."""
         self._check_state('rollback')
 
@@ -124,7 +124,7 @@ class Transaction:
                 'cannot enter context: already in an `async with` block')
         else:
             self._managed = True
-        await self._start()
+        await self.start()
 
         if self._timeout_available():
             self._timeout_handler._do_enter()
@@ -139,9 +139,9 @@ class Transaction:
     ) -> None:
         try:
             if exc_type is not None:
-                await self._rollback()
+                await self.rollback()
             else:
-                await self._commit()
+                await self.commit()
         finally:
             self._managed = False
             if self._timeout_available():
