@@ -52,7 +52,7 @@ class Connection:
     __slots__ = (
         '_name', '_conn', '_connector',
         '_isolation_level', '_prefetch',
-        '_queue', '_end'
+        '_queue', '_closed'
     )
 
     def __init__(
@@ -70,7 +70,7 @@ class Connection:
         self._prefetch = prefetch
 
         self._queue = SimpleQueue()
-        self._end = False
+        self._closed = False
 
     def _handler(self) -> None:
         """Execute function calls on a separate thread."""
@@ -248,7 +248,7 @@ class Connection:
             try:
                 await self._put(self._conn.close)
             finally:
-                self._end = True
+                self._closed = True
                 self._conn = None
 
     async def interrupt(self) -> None:
@@ -349,7 +349,7 @@ class Connection:
         return Transaction(self, isolation_level, timeout)
 
     def is_closed(self) -> bool:
-        return self._end and self._conn is None
+        return self._closed and self._conn is None
 
     @property
     def prefetch(self) -> int:
@@ -404,7 +404,7 @@ class Connection:
                 self._conn = await self._put(self._connector)
                 self.row_factory = Record
             except BaseException:
-                self._end = True
+                self._closed = True
                 self._conn = None
                 raise
 
