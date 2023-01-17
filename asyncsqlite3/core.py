@@ -253,7 +253,7 @@ class Connection:
 
     async def interrupt(self) -> None:
         """Interrupt pending queries."""
-        return self._conn.interrupt()
+        return await self._put(self._conn.interrupt)
 
     async def enable_load_extension(self, value: bool) -> None:
         await self._put(self._conn.enable_load_extension, value)  # type: ignore

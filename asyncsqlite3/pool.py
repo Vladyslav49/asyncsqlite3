@@ -208,12 +208,16 @@ class Pool:
         if self.is_closed():
             raise PoolError('Pool is closed.')
 
-        if self._close_timeout is not None:
-            async with async_timeout.timeout(self._close_timeout):
+        try:
+            if self._close_timeout is not None:
+                async with async_timeout.timeout(self._close_timeout):
+                    await self._wait_all_connections()
+            else:
                 await self._wait_all_connections()
-        else:
-            await self._wait_all_connections()
-        await self.terminate()
+            await self.terminate()
+        except asyncio.TimeoutError:
+            await self.terminate()
+            raise
 
     async def terminate(self) -> None:
         """Terminate all connections in the pool."""
@@ -233,13 +237,11 @@ class Pool:
             *,
             timeout: Optional[float] = None
     ) -> Cursor:
-        """Pool performs this operation using one of its connections and Connection.transaction().
+        """Pool performs this operation using one of its connections.
         Other than that, it behaves identically to Connection.execute().
         """
         async with self.acquire() as conn:
-            async with conn.transaction():
-                async with conn.execute(sql, parameters, timeout=timeout) as cursor:
-                    return cursor
+            return await conn.execute(sql, parameters, timeout=timeout)
 
     async def executemany(
             self,
@@ -248,13 +250,11 @@ class Pool:
             *,
             timeout: Optional[float] = None
     ) -> Cursor:
-        """Pool performs this operation using one of its connections and Connection.transaction().
+        """Pool performs this operation using one of its connections.
         Other than that, it behaves identically to Connection.executemany().
         """
         async with self.acquire() as conn:
-            async with conn.transaction():
-                async with conn.executemany(sql, parameters, timeout=timeout) as cursor:
-                    return cursor
+            return await conn.executemany(sql, parameters, timeout=timeout)
 
     async def executescript(
             self,
@@ -262,13 +262,11 @@ class Pool:
             *,
             timeout: Optional[float] = None
     ) -> Cursor:
-        """Pool performs this operation using one of its connections and Connection.transaction().
+        """Pool performs this operation using one of its connections.
         Other than that, it behaves identically to Connection.executescript().
         """
         async with self.acquire() as conn:
-            async with conn.transaction():
-                async with conn.executescript(sql_script, timeout=timeout) as cursor:
-                    return cursor
+            return await conn.executescript(sql_script, timeout=timeout)
 
     async def fetchone(
             self,

@@ -38,7 +38,7 @@ class Cursor:
     async def __aiter__(self) -> AsyncIterator[Record]:
         """Async iterator."""
         while True:
-            rows = await self.fetchmany(self._prefetch)
+            rows = await self.fetchmany(self.prefetch)
             if not rows:
                 return
             for row in rows:
