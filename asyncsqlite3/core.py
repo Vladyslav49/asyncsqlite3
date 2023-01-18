@@ -142,7 +142,7 @@ class Connection:
         """
         if row_factory is False:
             cursor.row_factory = self.row_factory
-        elif self.row_factory != row_factory:
+        else:
             cursor.row_factory = row_factory
 
     @contextmanager
@@ -250,10 +250,6 @@ class Connection:
             finally:
                 self._closed = True
                 self._conn = None
-
-    async def interrupt(self) -> None:
-        """Interrupt pending queries."""
-        return await self._put(self._conn.interrupt)
 
     async def enable_load_extension(self, value: bool) -> None:
         await self._put(self._conn.enable_load_extension, value)  # type: ignore
