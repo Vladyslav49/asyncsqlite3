@@ -18,7 +18,10 @@ from .factory import Record
 
 class Cursor:
 
-    __slots__ = ('_prefetch', '_conn', '_cursor', '_closed', '_execute')
+    __slots__ = (
+        '_prefetch', '_conn', '_cursor',
+        '_closed', '_execute'
+    )
 
     def __init__(
             self,
@@ -26,14 +29,16 @@ class Cursor:
             cursor: sqlite3.Cursor,
             prefetch: Optional[int] = None
     ) -> None:
+
         if prefetch is None:
             self._prefetch = conn.prefetch
         else:
             self._prefetch = prefetch
+
         self._conn = conn
         self._cursor = cursor
         self._closed = False
-        self._execute = self._conn._execute
+        self._execute = conn._execute
 
     async def __aiter__(self) -> AsyncIterator[Record]:
         """Async iterator."""
