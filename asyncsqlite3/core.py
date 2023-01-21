@@ -47,6 +47,16 @@ LOGGER = getLogger(__name__)
 _connection_name_counter = itertools.count(1).__next__
 
 
+def _set_result(future: asyncio.Future, result: Any) -> None:
+    if not future.done():
+        future.set_result(result)
+
+
+def _set_exception(future: asyncio.Future, exception: Type[BaseException]) -> None:
+    if not future.done():
+        future.set_exception(exception)
+
+
 class Connection:
 
     __slots__ = (
@@ -88,34 +98,34 @@ class Connection:
 
                     try:
                         result = function()
-                    except sqlite3.IntegrityError as error:
-                        raise IntegrityError(error) from None
-                    except sqlite3.NotSupportedError as error:
-                        raise NotSupportedError(error) from None
-                    except sqlite3.DataError as error:
-                        raise DataError(error) from None
-                    except sqlite3.InterfaceError as error:
-                        raise InterfaceError(error) from None
-                    except sqlite3.InternalError as error:
-                        raise InternalError(error) from None
-                    except sqlite3.ProgrammingError as error:
-                        raise ProgrammingError(error) from None
-                    except sqlite3.OperationalError as error:
-                        raise OperationalError(error) from None
-                    except sqlite3.DatabaseError as error:
-                        raise DatabaseError(error) from None
-                    except sqlite3.Error as error:
-                        raise Error(error) from None
-                    except sqlite3.Warning as error:
-                        raise Warning(error) from None
+                    except sqlite3.IntegrityError as exc:
+                        raise IntegrityError(exc) from None
+                    except sqlite3.NotSupportedError as exc:
+                        raise NotSupportedError(exc) from None
+                    except sqlite3.DataError as exc:
+                        raise DataError(exc) from None
+                    except sqlite3.InterfaceError as exc:
+                        raise InterfaceError(exc) from None
+                    except sqlite3.InternalError as exc:
+                        raise InternalError(exc) from None
+                    except sqlite3.ProgrammingError as exc:
+                        raise ProgrammingError(exc) from None
+                    except sqlite3.OperationalError as exc:
+                        raise OperationalError(exc) from None
+                    except sqlite3.DatabaseError as exc:
+                        raise DatabaseError(exc) from None
+                    except sqlite3.Error as exc:
+                        raise Error(exc) from None
+                    except sqlite3.Warning as exc:
+                        raise Warning(exc) from None
 
                     LOGGER.debug('operation %s completed', function)
 
-                    future.get_loop().call_soon_threadsafe(future.set_result, result)
-                except BaseException as error:
-                    LOGGER.debug('returning exception: %s', error)
+                    future.get_loop().call_soon_threadsafe(_set_result, future, result)
+                except BaseException as exc:
+                    LOGGER.debug('returning exception: %s', exc)
 
-                    future.get_loop().call_soon_threadsafe(future.set_exception, error)
+                    future.get_loop().call_soon_threadsafe(_set_exception, future, exc)
 
     async def _execute(self, func, *args, timeout=None, **kwargs):
         """Queue a function with the given arguments for execution."""

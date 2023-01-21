@@ -108,7 +108,7 @@ class Transaction:
             self._state = TransactionState.ROLLEDBACK
 
     def _timeout_available(self) -> bool:
-        return isinstance(self._timeout_handler, async_timeout.Timeout)
+        return self._timeout_handler is not None
 
     @property
     def state(self) -> str:
