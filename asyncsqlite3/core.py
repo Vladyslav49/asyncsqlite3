@@ -72,15 +72,16 @@ class Connection:
         self._queue = SimpleQueue()
         self._closed = False
 
-    def _handler(self) -> None:
+    def _executor(self) -> None:
         """Execute function calls on a separate thread."""
-        while not self.is_closed():
+        while True:
             # Continues running until all queue items are processed,
             # even after connection is closed (so we can finalize all futures)
             try:
                 future, function = self._queue.get(timeout=0.1)
             except Empty:
-                pass
+                if self.is_closed():
+                    break
             else:
                 try:
                     LOGGER.debug('executing: %s', function)
@@ -116,7 +117,7 @@ class Connection:
 
                     future.get_loop().call_soon_threadsafe(future.set_exception, error)
 
-    async def _put(self, func, *args, timeout=None, **kwargs):
+    async def _execute(self, func, *args, timeout=None, **kwargs):
         """Queue a function with the given arguments for execution."""
         function = partial(func, *args, **kwargs)
 
@@ -153,7 +154,7 @@ class Connection:
             row_factory: Optional[Type] = False
     ) -> Cursor:
         """Create an asyncsqlite3 cursor wrapping a sqlite3 cursor object."""
-        cursor = Cursor(self, await self._put(self._conn.cursor), prefetch)
+        cursor = Cursor(self, await self._execute(self._conn.cursor), prefetch)
         self._set_cursor_row_factory(cursor, row_factory)
         return cursor
 
@@ -168,7 +169,7 @@ class Connection:
         """Helper to create a cursor and execute the given query."""
         if parameters is None:
             parameters = []
-        cursor = await self._put(self._conn.execute, sql, parameters, timeout=timeout)
+        cursor = await self._execute(self._conn.execute, sql, parameters, timeout=timeout)
         return Cursor(self, cursor)
 
     @contextmanager
@@ -180,7 +181,7 @@ class Connection:
             timeout: Optional[float] = None
     ) -> Cursor:
         """Helper to create a cursor and execute the given multiquery."""
-        cursor = await self._put(self._conn.executemany, sql, parameters, timeout=timeout)
+        cursor = await self._execute(self._conn.executemany, sql, parameters, timeout=timeout)
         return Cursor(self, cursor)
 
     @contextmanager
@@ -191,7 +192,7 @@ class Connection:
             timeout: Optional[float] = None
     ) -> Cursor:
         """Helper to create a cursor and execute a user script."""
-        cursor = await self._put(self._conn.executescript, sql_script, timeout=timeout)
+        cursor = await self._execute(self._conn.executescript, sql_script, timeout=timeout)
         return Cursor(self, cursor)
 
     async def fetchone(
@@ -236,34 +237,34 @@ class Connection:
 
     async def commit(self) -> None:
         """Commit the current transaction."""
-        await self._put(self._conn.commit)
+        await self._execute(self._conn.commit)
 
     async def rollback(self) -> None:
         """Roll back the current transaction."""
-        await self._put(self._conn.rollback)
+        await self._execute(self._conn.rollback)
 
     async def close(self) -> None:
         """Complete queued queries/cursors and close the connection."""
         if not self.is_closed():
             try:
-                await self._put(self._conn.close)
+                await self._execute(self._conn.close)
             finally:
                 self._closed = True
                 self._conn = None
 
     async def enable_load_extension(self, value: bool) -> None:
-        await self._put(self._conn.enable_load_extension, value)  # type: ignore
+        await self._execute(self._conn.enable_load_extension, value)  # type: ignore
 
     async def load_extension(self, path: str) -> None:
-        await self._put(self._conn.load_extension, path)  # type: ignore
+        await self._execute(self._conn.load_extension, path)  # type: ignore
 
     async def set_progress_handler(
             self, handler: Callable[[], Optional[int]], n: int
     ) -> None:
-        await self._put(self._conn.set_progress_handler, handler, n)
+        await self._execute(self._conn.set_progress_handler, handler, n)
 
     async def set_trace_callback(self, handler: Callable) -> None:
-        await self._put(self._conn.set_trace_callback, handler)
+        await self._execute(self._conn.set_trace_callback, handler)
 
     async def create_function(
             self, name: str, num_params: int, func: Callable, deterministic: bool = False
@@ -280,7 +281,7 @@ class Connection:
         versions.
         """
         if sys.version_info >= (3, 8):
-            await self._put(
+            await self._execute(
                 self._conn.create_function,
                 name,
                 num_params,
@@ -295,7 +296,7 @@ class Connection:
                     "non-deterministic as per SQLite defaults.".format(name)
                 )
 
-            await self._put(self._conn.create_function, name, num_params, func)
+            await self._execute(self._conn.create_function, name, num_params, func)
 
     async def iterdump(self) -> AsyncIterator[str]:
         """
@@ -304,7 +305,7 @@ class Connection:
             async for line in db.iterdump():
                 ...
         """
-        for line in await self._put(self._conn.iterdump):
+        for line in await self._execute(self._conn.iterdump):
             yield line
 
     async def backup(
@@ -324,7 +325,7 @@ class Connection:
         if isinstance(target, Connection):
             target = target._conn
 
-        await self._put(
+        await self._execute(
             self._conn.backup,
             target,
             pages=pages,
@@ -392,12 +393,12 @@ class Connection:
         if self._conn is None:
             try:
                 Thread(
-                    target=self._handler,
+                    target=self._executor,
                     name=self._name,
                     daemon=True
                 ).start()
 
-                self._conn = await self._put(self._connector)
+                self._conn = await self._execute(self._connector)
                 self.row_factory = Record
             except BaseException:
                 self._closed = True
