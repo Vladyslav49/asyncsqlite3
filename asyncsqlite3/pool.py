@@ -8,8 +8,7 @@ from typing import (
     Type,
     Generator,
     Any,
-    Iterable,
-    Coroutine
+    Iterable
 )
 
 import async_timeout
@@ -19,6 +18,7 @@ from .cursor import Cursor
 from .exceptions import PoolError
 from .transaction import IsolationLevel
 from .factory import Record
+from .context import contextmanager
 
 
 class ConnectionProxy(Connection):
@@ -80,19 +80,20 @@ def connect(
 
 class PoolAcquireContext:
 
-    __slots__ = ('_pool', '_timeout', '_conn')
+    __slots__ = ('_pool', '_timeout', '_conn', '_done')
 
     def __init__(self, pool: "Pool", timeout: Optional[float]) -> None:
         self._pool = pool
         self._timeout = timeout
         self._conn = None
+        self._done = False
 
-    def _acquired(self) -> None:
-        if self._conn is not None:
+    async def _acquire(self) -> ConnectionProxy:
+        if self._conn is not None or self._done:
             raise PoolError('A connection is already acquired.')
-
-    def _acquire(self) -> Coroutine[Any, Any, ConnectionProxy]:
-        return self._pool._acquire(timeout=self._timeout)
+        self._done = True
+        self._conn = await self._pool._acquire(timeout=self._timeout)
+        return self._conn
 
     def _release(self) -> None:
         conn = self._conn
@@ -100,9 +101,7 @@ class PoolAcquireContext:
         self._pool.release(conn)
 
     async def __aenter__(self) -> ConnectionProxy:
-        self._acquired()
-        self._conn = await self._acquire()
-        return self._conn
+        return await self
 
     async def __aexit__(
             self,
@@ -112,10 +111,8 @@ class PoolAcquireContext:
     ) -> None:
         self._release()
 
-    def __await__(self) -> ConnectionProxy:
-        self._acquired()
-        self._conn = yield from self._acquire().__await__()
-        return self._conn
+    def __await__(self) -> Generator[Any, None, "ConnectionProxy"]:
+        return self._acquire().__await__()
 
 
 class Pool:
@@ -247,6 +244,7 @@ class Pool:
             self._closed = True
             self._all_connections.clear()
 
+    @contextmanager
     async def execute(
             self,
             sql: str,
@@ -260,6 +258,7 @@ class Pool:
         async with self.acquire() as conn:
             return await conn.execute(sql, parameters, timeout=timeout)
 
+    @contextmanager
     async def executemany(
             self,
             sql: str,
@@ -273,6 +272,7 @@ class Pool:
         async with self.acquire() as conn:
             return await conn.executemany(sql, parameters, timeout=timeout)
 
+    @contextmanager
     async def executescript(
             self,
             sql_script: str,

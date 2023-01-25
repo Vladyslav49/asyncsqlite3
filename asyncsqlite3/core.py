@@ -52,9 +52,9 @@ def _set_result(future: asyncio.Future, result: Any) -> None:
         future.set_result(result)
 
 
-def _set_exception(future: asyncio.Future, exception: Type[BaseException]) -> None:
+def _set_exception(future: asyncio.Future, exc: Union[Type, BaseException]) -> None:
     if not future.done():
-        future.set_exception(exception)
+        future.set_exception(exc)
 
 
 class Connection:
@@ -277,7 +277,11 @@ class Connection:
         await self._execute(self._conn.set_trace_callback, handler)
 
     async def create_function(
-            self, name: str, num_params: int, func: Callable, deterministic: bool = False
+            self,
+            name: str,
+            num_params: int,
+            func: Callable,
+            deterministic: bool = False
     ) -> None:
         """
         Create user-defined function that can be later used
